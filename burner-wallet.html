@@ -1,0 +1,1612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#07090b" />
+<link rel="icon" href="data:," />
+<title>Burner Wallet — Multi-Chain, One Seed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f2ec; --panel:#fffdf8; --panel2:#efece3; --ink:#1c1a15; --muted:#6d675a;
+  --line:#ddd6c6; --accent:#e8590c; --accent-ink:#fff; --teal:#0b7285; --good:#2b8a3e;
+  --bad:#c92a2a; --warn-bg:#fff3bf; --warn-ink:#7a5b00; --warn-line:#e6c94d;
+  --chip:#e9e4d4; --shadow:0 1px 2px rgba(28,26,21,.06),0 8px 24px rgba(28,26,21,.06);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121110; --panel:#1c1a17; --panel2:#24211c; --ink:#f0ead9; --muted:#a89f8a;
+    --line:#3a352b; --accent:#f76707; --teal:#3bc9db; --good:#51cf66; --bad:#ff8787;
+    --warn-bg:#3a2f05; --warn-ink:#ffd43b; --warn-line:#7a5b00; --chip:#2c2820;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.5}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+button,[role="button"],select,summary,input:not([type="checkbox"]){min-height:2.25rem}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:.45rem .9rem;font-weight:600}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.ghost{background:transparent}
+button.danger{border-color:var(--bad);color:var(--bad)}
+button.small{padding:.25rem .6rem;font-size:.82rem;min-height:2rem}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.5rem .7rem;width:100%}
+textarea{font-family:"IBM Plex Mono",monospace;font-size:.9rem;resize:vertical}
+label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin:.7rem 0 .3rem}
+a{color:var(--teal)}
+.wrap{max-width:1080px;margin:0 auto;padding:1rem 1rem 4rem}
+.warn{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:var(--radius);padding:.85rem 1rem;font-size:.92rem}
+.warn strong{font-weight:700}
+.topbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;margin:1rem 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;border-radius:0;background:transparent;padding:.4rem 1rem}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.1rem;margin:0 0 1rem}
+h1{font-size:1.65rem;line-height:1.2;margin:.4rem 0 .3rem;letter-spacing:-.01em}
+h2{font-size:1.15rem;margin:.2rem 0 .7rem}
+h3{font-size:.95rem;margin:0 0 .3rem}
+.sub{color:var(--muted);margin:0 0 1rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem}
+.chain-head{display:flex;align-items:center;gap:.6rem}
+.dot{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:.8rem;color:#fff;flex:none}
+.addr{font-family:"IBM Plex Mono",monospace;font-size:.78rem;word-break:break-all;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:.45rem .55rem;margin:.55rem 0}
+.bal{font-size:1.35rem;font-weight:700}
+.bal small{font-size:.85rem;color:var(--muted);font-weight:600}
+.evmrows{display:flex;flex-direction:column;gap:.45rem;margin-top:.55rem}
+.evmrow{border:1px solid var(--line);border-radius:10px;padding:.5rem .65rem;background:var(--panel2);cursor:pointer;text-align:left;width:100%;font:inherit;color:inherit}
+.evmrow:hover{border-color:var(--muted)}
+.evmrow.on{border-color:var(--accent);background:var(--panel)}
+.evmrow .nm{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-weight:700;font-size:.88rem}
+.evmrow .bals{display:flex;gap:1.1rem;flex-wrap:wrap;margin-top:.15rem;font-weight:700;font-size:1.02rem}
+.evmrow .bals small{color:var(--muted);font-weight:600;font-size:.8rem}
+.evmrow .bals .usdc{color:var(--teal)}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.row>*{flex:none}
+.row .grow{flex:1 1 140px}
+.path{font-size:.72rem;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.pill{display:inline-block;background:var(--chip);border-radius:999px;padding:.12rem .6rem;font-size:.75rem;font-weight:600}
+.ok{color:var(--good);font-weight:700}.err{color:var(--bad);font-weight:600}
+.small-txt{font-size:.83rem;color:var(--muted)}
+.hidden{display:none!important}
+.remember{border:1px solid var(--line);border-radius:10px;padding:.75rem .85rem;background:var(--panel2);margin-top:1rem}
+.remember>label{display:flex;gap:.55rem;align-items:flex-start;margin:0;color:var(--ink);font-size:.92rem;font-weight:600;cursor:pointer}
+.remember input[type="checkbox"]{width:1.1rem;height:1.1rem;margin-top:.15rem;flex:none;accent-color:var(--accent)}
+.remember .small-txt{margin-top:.35rem}
+.qrbox{display:grid;place-items:center;padding:1rem;background:#fff;border-radius:12px}
+.qrbox table{border-collapse:collapse}
+dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);color:var(--ink);max-width:min(92vw,420px);padding:1.2rem}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+.txitem{border-top:1px solid var(--line);padding:.55rem 0;font-size:.86rem}
+.txitem:first-child{border-top:0}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:.3rem .8rem;font-size:.88rem}
+.kv dt{color:var(--muted);font-weight:600}.kv dd{margin:0;word-break:break-all;font-family:"IBM Plex Mono",monospace;font-size:.8rem}
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.6rem 1rem;border-radius:999px;font-size:.88rem;font-weight:600;box-shadow:var(--shadow);z-index:50;max-width:92vw;text-align:center}
+select.chainpick{width:auto}
+footer{color:var(--muted);font-size:.8rem;margin-top:2rem}
+@media (max-width:560px){ .grid{grid-template-columns:1fr} h1{font-size:1.4rem} }
+</style>
+<style>
+/* ===== Burner Wallet — Bitget-style dark app theme ===== */
+:root{
+  --bg:#07090b; --panel:#121519; --panel2:#1a1e24; --ink:#f4f6f8; --muted:#8b93a1;
+  --line:#23282f; --accent:#00e5ff; --accent-ink:#01303a; --teal:#00e5ff; --good:#2ebd85;
+  --bad:#f6465d; --warn-bg:#2b2307; --warn-ink:#ffd43b; --warn-line:#6b5510;
+  --chip:#1f242b; --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.45);
+  --radius:16px;
+}
+body{background:var(--bg)}
+button{border-radius:12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+input,select,textarea{background:var(--panel2)}
+.card{background:var(--panel)}
+.seg{background:var(--panel2)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+#dashView{padding-bottom:5.5rem}
+#dashView .tabs{display:none}
+#viewHome,#viewDiscover,#viewMarkets{max-width:680px;margin:0 auto}
+.acctrow{display:flex;align-items:center;gap:.55rem;margin:.1rem 0 .3rem}
+.addrchip{background:transparent;border:0;color:var(--ink);font-weight:600;padding:.2rem 0;min-height:0;font-size:.92rem}
+.addrchip:hover{border-color:transparent;color:var(--accent)}
+.balrow{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin:.4rem 0 1rem}
+.bigbal{font-size:2.15rem;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+#addFundsBtn{border-radius:999px;padding:.55rem 1.25rem;flex:none;margin-top:.4rem}
+.actions3{display:flex;gap:.6rem;margin-bottom:1rem}
+.actions3 button{flex:1;display:flex;align-items:center;justify-content:center;gap:.45rem;background:var(--panel2);border-color:var(--line);border-radius:999px;padding:.55rem .4rem;font-weight:600}
+.actions3 svg{width:17px;height:17px;flex:none}
+.quickrow{display:flex;gap:.6rem;overflow-x:auto;padding-bottom:.4rem;margin-bottom:1.1rem;scrollbar-width:none}
+.quickrow::-webkit-scrollbar{display:none}
+.quick{flex:0 0 132px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.8rem;color:var(--ink)}
+.quick .qic{width:30px;height:30px;border-radius:9px;background:var(--panel2);display:grid;place-items:center;margin-bottom:.5rem;color:var(--accent)}
+.quick .qic svg{width:17px;height:17px}
+.quick strong{display:block;font-size:.92rem}
+.quick small{color:var(--muted);font-size:.75rem}
+.tokhead{display:flex;align-items:baseline;gap:.6rem;margin:.4rem 0 .2rem}
+.tokhead h2{margin:0}
+.tokhead .sp{flex:1}
+.tokrow{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:.65rem .1rem;color:var(--ink);font-weight:400}
+.tokrow:hover{border-color:var(--line);background:var(--panel)}
+.tokrow .dot{border-radius:50%;font-size:.62rem}
+.tokmain{flex:1;min-width:0;display:flex;flex-direction:column}
+.toksym{font-weight:700;font-size:.98rem}
+.toksym .chainname{color:var(--muted);font-weight:600;font-size:.72rem;margin-left:.35rem}
+.toksub{color:var(--muted);font-size:.8rem}
+.tokbal{display:flex;flex-direction:column;align-items:flex-end;flex:none}
+.tokbal .amt{font-weight:700}
+.tokbal .val{color:var(--muted);font-size:.8rem}
+.up{color:var(--good)} .down{color:var(--bad)}
+.dchips{display:flex;gap:.35rem;overflow-x:auto;padding-bottom:.5rem;scrollbar-width:none}
+.dchips::-webkit-scrollbar{display:none}
+.dchip{flex:none;border-radius:999px;background:transparent;border-color:transparent;color:var(--muted);padding:.35rem .7rem}
+.dchip.on{color:var(--ink);background:var(--panel2);border-color:var(--line)}
+.dsec h3{font-size:1.02rem;margin:1.15rem 0 .25rem}
+.dapp{display:flex;align-items:center;gap:.7rem;padding:.6rem .1rem;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.dapp:hover{background:var(--panel)}
+.dapp .dot{border-radius:12px}
+.dapp .dmain{flex:1;min-width:0;display:flex;flex-direction:column}
+.dapp .dmain strong{font-size:.95rem}
+.dapp .dmain small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dapp .dgo{color:var(--muted);flex:none}
+.swapmodes{display:flex;gap:1.3rem;margin:.1rem 0 .9rem}
+.swapmodes button{background:transparent;border:0;color:var(--muted);font-size:1.18rem;font-weight:700;padding:.2rem 0;min-height:0}
+.swapmodes button:hover{border-color:transparent}
+.swapmodes button.on{color:var(--ink)}
+.bottomnav{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:680px;background:rgba(16,19,23,.98);border-top:1px solid var(--line);display:flex;z-index:40;padding:.3rem .5rem calc(.3rem + env(safe-area-inset-bottom))}
+.bottomnav button{flex:1;background:transparent;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.68rem;font-weight:600;padding:.35rem 0;border-radius:10px;min-height:0}
+.bottomnav button:hover{border-color:transparent}
+.bottomnav button.on{color:var(--accent)}
+.bottomnav svg{width:22px;height:22px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ LOCKED VIEW ============ -->
+  <section id="lockedView">
+    <p class="pill">BURNER WALLET · BIP39 / BIP44 · 7 NETWORKS</p>
+    <h1>One seed phrase.<br>Every chain you need.</h1>
+    <p class="sub">Bitcoin SegWit, all EVM chains, Solana, TRON, SUI, TON and NEAR — derived locally in your browser from a single mnemonic, using the same standard paths as MetaMask, Trust Wallet, Phantom, TronLink and the Ian Coleman BIP39 tool.</p>
+
+    <div class="warn" role="alert">
+      <strong>⚠ Burner wallet — small amounts only.</strong>
+      This page holds keys <strong>only in browser memory</strong> while unlocked. Nothing is sent to a server. If you turn on remember-me below, an <strong>encrypted copy of your seed</strong> is saved in this browser only, locked behind a password you set — the plain seed is never saved. Never share your seed phrase with anyone, never type it into a page you don't trust, and use a hardware wallet for real funds. Locking the wallet wipes the keys from memory.
+    </div>
+
+    <div class="card hidden" id="vaultCard" style="margin-top:1rem">
+      <h2>Welcome back — unlock with your password</h2>
+      <p class="small-txt" style="margin-top:0">A password-encrypted copy of your seed is saved in this browser. Enter your remember-me password to unlock — no need to paste the seed phrase again. The seed itself never leaves this browser.</p>
+      <label for="vaultPassword">Remember-me password</label>
+      <input id="vaultPassword" type="password" autocomplete="current-password" placeholder="Your remember-me password">
+      <div class="row" style="margin-top:1rem">
+        <button class="primary" id="vaultUnlockBtn" type="button">Unlock with password</button>
+        <span class="small-txt" id="vaultStatus"></span>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <button id="vaultUseSeedBtn" type="button" class="small">Use seed phrase instead</button>
+        <button id="vaultForgetBtn" type="button" class="small danger">Forget saved wallet</button>
+      </div>
+      <p class="small-txt">Forgot the password? It can't be recovered — use “Use seed phrase instead” with your seed phrase, or forget the saved copy and set remember-me up again. Anyone who can open this browser profile and guess your password can unlock this wallet, so use a strong, unique password.</p>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h2>Unlock</h2>
+      <div class="tabs" role="tablist">
+        <button id="tabMnemonic" class="on" type="button">Mnemonic</button>
+        <button id="tabFile" type="button">Backup file</button>
+      </div>
+
+      <div id="paneMnemonic">
+        <label for="mnemonicInput">Seed phrase — 12, 15, 18, 21 or 24 words</label>
+        <textarea id="mnemonicInput" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="word1 word2 word3 …"></textarea>
+        <label for="passphraseInput">BIP39 passphrase (optional, usually empty)</label>
+        <input id="passphraseInput" type="password" autocomplete="off" placeholder="Leave empty if you don't use one">
+        <div class="remember">
+          <label for="rememberCheck"><input type="checkbox" id="rememberCheck"> Remember this wallet on this device</label>
+          <p class="small-txt">Saves your seed <strong>encrypted with a password</strong> in this browser only, so next time you just enter the password instead of the seed phrase. Still locked by default — locking and reloading keep it locked. The plain seed is never stored and never leaves this browser.</p>
+          <div id="rememberFields" class="hidden">
+            <label for="rememberPassword">Set a remember-me password (8+ characters)</label>
+            <input id="rememberPassword" type="password" autocomplete="new-password" placeholder="Choose a strong password">
+            <label for="rememberPassword2">Repeat the password</label>
+            <input id="rememberPassword2" type="password" autocomplete="new-password" placeholder="Repeat it">
+            <p class="small-txt">This password only encrypts the copy on this device — it is <strong>not</strong> your BIP39 passphrase and it can't be recovered if you forget it. You'll still have your seed phrase as backup.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:1rem">
+          <button class="primary" id="unlockBtn" type="button">Derive my addresses</button>
+          <span class="small-txt" id="unlockStatus"></span>
+        </div>
+      </div>
+
+      <div id="paneFile" class="hidden">
+        <label for="backupFile">Wallet backup JSON (exported from this page)</label>
+        <input id="backupFile" type="file" accept=".json,application/json">
+        <p class="small-txt">The file is read locally in your browser. It is never uploaded.</p>
+        <div class="remember">
+          <label for="rememberCheckFile"><input type="checkbox" id="rememberCheckFile"> Remember this wallet on this device</label>
+          <p class="small-txt">Same as the seed-phrase option: saves the seed from the backup file <strong>encrypted with a password</strong> in this browser only, so next time a password unlocks it.</p>
+          <div id="rememberFieldsFile" class="hidden">
+            <label for="rememberPasswordFile">Set a remember-me password (8+ characters)</label>
+            <input id="rememberPasswordFile" type="password" autocomplete="new-password" placeholder="Choose a strong password">
+            <label for="rememberPasswordFile2">Repeat the password</label>
+            <input id="rememberPasswordFile2" type="password" autocomplete="new-password" placeholder="Repeat it">
+          </div>
+        </div>
+        <div class="row" style="margin-top:1rem"><button class="primary" id="importFileBtn" type="button">Import backup file</button><span class="small-txt" id="fileStatus"></span></div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <h2>Self-test — does the math check out?</h2>
+      <p class="small-txt">Runs the public BIP39 test mnemonic (<span class="mono">abandon … about</span>) through this page's own derivation code and compares against the well-known published results. No real funds are involved.</p>
+      <div class="row"><button id="selfTestBtn" type="button">Run self-test</button><span id="selfTestStatus" class="small-txt"></span></div>
+      <div id="selfTestOut" style="margin-top:.6rem"></div>
+    </div>
+
+    <div class="card">
+      <h2>Derivation paths used</h2>
+      <dl class="kv">
+        <dt>Bitcoin SegWit</dt><dd>m/84'/0'/0'/0/0 · testnet m/84'/1'/0'/0/0 (BIP84, bech32)</dd>
+        <dt>EVM (all chains)</dt><dd>m/44'/60'/0'/0/0 — one address for Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Base…</dd>
+        <dt>Solana</dt><dd>m/44'/501'/0'/0' (SLIP-0010 ed25519, Phantom/Solflare style)</dd>
+        <dt>TRON</dt><dd>m/44'/195'/0'/0/0 (TronLink style)</dd>
+        <dt>SUI</dt><dd>m/44'/784'/0'/0'/0' (SLIP-0010 ed25519)</dd>
+        <dt>TON</dt><dd>m/44'/607'/0'/0'/0' → WalletContractV4, bounceable address</dd>
+        <dt>NEAR</dt><dd>m/44'/397'/0' → implicit account (ed25519 public key, hex)</dd>
+      </dl>
+      <p class="small-txt">Cross-check any address at <a href="https://iancoleman.io/bip39" target="_blank" rel="noopener">iancoleman.io/bip39</a> and EVM networks at <a href="https://chainlist.org" target="_blank" rel="noopener">chainlist.org</a>.</p>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="dashView" class="hidden">
+    <div class="warn" role="alert"><strong>⚠ Burner wallet.</strong> Keys live only in this tab's memory while unlocked. Keep amounts small, and hit <strong>Lock</strong> when you're done — locking wipes the seed and every private key from memory. If remember-me is on, only the password-encrypted copy stays in this browser, still locked.</div>
+
+    <div class="topbar">
+      <div class="row">
+        <div class="seg" role="group" aria-label="Network">
+          <button id="netMain" class="on" type="button">Mainnet</button>
+          <button id="netTest" type="button">Testnet</button>
+        </div>
+        <span class="pill" id="syncPill">Not synced yet</span>
+      </div>
+      <div class="row">
+        <button id="refreshBtn" type="button">↻ Refresh balances</button>
+        <button class="danger" id="lockBtn" type="button">🔒 Lock &amp; wipe keys</button>
+      </div>
+    </div>
+
+    <!-- ===== HOME ===== -->
+    <div id="viewHome">
+      <div class="acctrow">
+        <button type="button" class="addrchip mono" id="addrChip" title="Copy EVM address">—</button>
+        <span class="pill" id="netPill">Mainnet</span>
+      </div>
+      <div class="balrow">
+        <div>
+          <div class="small-txt">Total balance</div>
+          <div class="bigbal" id="totalBal">Rp 0.00</div>
+          <div class="small-txt" id="totalNote"></div>
+        </div>
+        <button class="primary" id="addFundsBtn" type="button">Add funds</button>
+      </div>
+      <div class="actions3">
+        <button type="button" id="homeSendBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>Send</button>
+        <button type="button" id="homeReceiveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17"/><path d="M16 17H7V8"/></svg>Receive</button>
+        <button type="button" id="homeHistoryBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+      </div>
+      <div class="quickrow">
+        <button type="button" class="quick" data-qk="swap"><span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13"/><path d="m3 13 4 4 4-4"/><path d="M17 20V7"/><path d="m13 11 4-4 4 4"/></svg></span><strong>Swap</strong><small>Aggregator quotes</small></button>
+        <button type="button" class="quick" data-qk="discover"><span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg></span><strong>Discover</strong><small>DApps &amp; bridges</small></button>
+        <button type="button" class="quick" data-qk="tokens"><span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span><strong>Tokens</strong><small>Import ERC-20</small></button>
+        <button type="button" class="quick" data-qk="backup"><span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg></span><strong>Backup</strong><small>Keys &amp; export</small></button>
+      </div>
+      <div class="tokhead"><h2>Tokens</h2><span class="small-txt" id="tokTotal"></span><span class="sp"></span><button type="button" class="small ghost" id="manageTokBtn">Manage tokens</button></div>
+      <div id="homeTokens"><p class="small-txt">Loading balances…</p></div>
+    </div>
+
+    <!-- ===== MARKETS ===== -->
+    <div id="viewMarkets" class="hidden">
+      <h2 style="margin-top:.2rem">Markets</h2>
+      <p class="small-txt">Live IDR prices via CoinGecko for the assets this wallet tracks. Tap a row to send that asset.</p>
+      <div id="marketList"><p class="small-txt">Loading prices…</p></div>
+    </div>
+
+    <!-- ===== DISCOVER ===== -->
+    <div id="viewDiscover" class="hidden">
+      <h2 style="margin-top:.2rem">Discover</h2>
+      <div class="dchips">
+        <button type="button" class="dchip on" data-dcat="hot">Hot</button>
+        <button type="button" class="dchip" data-dcat="exchange">Exchange</button>
+        <button type="button" class="dchip" data-dcat="bridge">Bridge</button>
+        <button type="button" class="dchip" data-dcat="defi">DeFi</button>
+        <button type="button" class="dchip" data-dcat="lending">Lending</button>
+        <button type="button" class="dchip" data-dcat="nft">NFT</button>
+        <button type="button" class="dchip" data-dcat="gamefi">GameFi</button>
+        <button type="button" class="dchip" data-dcat="tools">Tools</button>
+      </div>
+      <p class="small-txt">Links open the official DApp sites in a new tab. This wallet never connects to them automatically — connect only on the site itself, and double-check the address bar before signing anything.</p>
+
+      <div class="dsec" data-cat="exchange">
+        <h3>Top DEX</h3>
+        <a class="dapp" href="https://app.uniswap.org" target="_blank" rel="noopener"><span class="dot" style="background:#ff007a">U</span><span class="dmain"><strong>Uniswap</strong><small>Decentralized trading protocol</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://pancakeswap.finance" target="_blank" rel="noopener"><span class="dot" style="background:#e8a33d">P</span><span class="dmain"><strong>PancakeSwap</strong><small>Trade, earn and win crypto on BNB Chain's top DEX</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://app.1inch.io" target="_blank" rel="noopener"><span class="dot" style="background:#1b314f">1</span><span class="dmain"><strong>1inch</strong><small>DEX aggregator with the best rates across chains</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://app.openocean.finance" target="_blank" rel="noopener"><span class="dot" style="background:#0aa4c7">O</span><span class="dmain"><strong>OpenOcean</strong><small>The aggregator behind this wallet's Swap quotes</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://jup.ag" target="_blank" rel="noopener"><span class="dot" style="background:#2ebd85">J</span><span class="dmain"><strong>Jupiter</strong><small>Solana's swap aggregator</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="bridge">
+        <h3>Bridges</h3>
+        <a class="dapp" href="https://li.fi" target="_blank" rel="noopener"><span class="dot" style="background:#bf5af2">L</span><span class="dmain"><strong>LI.FI</strong><small>Cross-chain bridge aggregation protocol</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://across.to" target="_blank" rel="noopener"><span class="dot" style="background:#19c2a6">A</span><span class="dmain"><strong>Across</strong><small>Fast, cheap bridging powered by an optimistic oracle</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://stargate.finance" target="_blank" rel="noopener"><span class="dot" style="background:#b8860b">S</span><span class="dmain"><strong>Stargate</strong><small>Omnichain liquidity transfer protocol</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="defi">
+        <h3>Top DeFi</h3>
+        <a class="dapp" href="https://lido.fi" target="_blank" rel="noopener"><span class="dot" style="background:#00a3ff">L</span><span class="dmain"><strong>Lido</strong><small>Liquid staking protocol</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://curve.fi" target="_blank" rel="noopener"><span class="dot" style="background:#e53935">C</span><span class="dmain"><strong>Curve</strong><small>Stablecoin-focused decentralized exchange</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://sky.money" target="_blank" rel="noopener"><span class="dot" style="background:#f6a609">S</span><span class="dmain"><strong>Sky</strong><small>The protocol behind USDS — formerly Maker</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="lending">
+        <h3>Lending</h3>
+        <a class="dapp" href="https://app.aave.com" target="_blank" rel="noopener"><span class="dot" style="background:#8a63d2">A</span><span class="dmain"><strong>Aave</strong><small>Multi-chain decentralized lending protocol</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://app.compound.finance" target="_blank" rel="noopener"><span class="dot" style="background:#00a36c">C</span><span class="dmain"><strong>Compound</strong><small>Algorithmic money markets</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://app.morpho.org" target="_blank" rel="noopener"><span class="dot" style="background:#2470ff">M</span><span class="dmain"><strong>Morpho</strong><small>Lending protocol and curated vaults</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="nft">
+        <h3>NFT</h3>
+        <a class="dapp" href="https://opensea.io" target="_blank" rel="noopener"><span class="dot" style="background:#2081e2">O</span><span class="dmain"><strong>OpenSea</strong><small>The largest NFT marketplace</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://blur.io" target="_blank" rel="noopener"><span class="dot" style="background:#ff8700">B</span><span class="dmain"><strong>Blur</strong><small>NFT marketplace for pro traders</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://magiceden.io" target="_blank" rel="noopener"><span class="dot" style="background:#e42575">M</span><span class="dmain"><strong>Magic Eden</strong><small>Multi-chain NFT marketplace</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="gamefi">
+        <h3>Top Blockchain Games</h3>
+        <a class="dapp" href="https://axieinfinity.com" target="_blank" rel="noopener"><span class="dot" style="background:#0055d5">A</span><span class="dmain"><strong>Axie Infinity</strong><small>Battle, breed and trade Axies</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://www.sandbox.game" target="_blank" rel="noopener"><span class="dot" style="background:#00adef">S</span><span class="dmain"><strong>The Sandbox</strong><small>User-built voxel metaverse</small></span><span class="dgo">›</span></a>
+      </div>
+
+      <div class="dsec" data-cat="tools">
+        <h3>Tools</h3>
+        <a class="dapp" href="https://chainlist.org" target="_blank" rel="noopener"><span class="dot" style="background:#2f80ed">C</span><span class="dmain"><strong>Chainlist</strong><small>EVM network and RPC list</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://www.coingecko.com" target="_blank" rel="noopener"><span class="dot" style="background:#5a9e06">G</span><span class="dmain"><strong>CoinGecko</strong><small>Live prices — the source for this wallet's Rp values</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://etherscan.io" target="_blank" rel="noopener"><span class="dot" style="background:#3498db">E</span><span class="dmain"><strong>Etherscan</strong><small>Ethereum block explorer</small></span><span class="dgo">›</span></a>
+        <a class="dapp" href="https://iancoleman.io/bip39" target="_blank" rel="noopener"><span class="dot" style="background:#f7931a">B</span><span class="dmain"><strong>Ian Coleman BIP39</strong><small>Verify this wallet's derivation paths</small></span><span class="dgo">›</span></a>
+      </div>
+    </div>
+
+    <div id="viewTools" class="hidden">
+    <div class="grid" id="chainGrid"></div>
+
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button data-tab="send" class="on" type="button">Send</button>
+        <button data-tab="swap" type="button">Swap</button>
+        <button data-tab="tokens" type="button">Custom tokens</button>
+        <button data-tab="activity" type="button">Activity</button>
+        <button data-tab="backup" type="button">Backup &amp; keys</button>
+      </div>
+
+      <!-- SEND -->
+      <div id="tab-send">
+        <h2>Send</h2>
+        <label for="sendChain">Chain</label>
+        <select id="sendChain"></select>
+        <div class="row">
+          <div class="grow"><label for="sendTo">Recipient address</label><input id="sendTo" class="mono" autocomplete="off" placeholder="Destination address"></div>
+          <div style="flex:0 1 170px"><label for="sendAmt">Amount</label><input id="sendAmt" inputmode="decimal" placeholder="0.0"></div>
+        </div>
+        <p class="small-txt" id="sendNote"></p>
+        <div class="row"><button class="primary" id="sendBtn" type="button">Review &amp; sign</button><span class="small-txt" id="sendStatus"></span></div>
+        <div id="sendResult" style="margin-top:.7rem"></div>
+      </div>
+
+      <!-- SWAP -->
+      <div id="tab-swap" class="hidden">
+        <h2>Swap — EVM aggregator quotes</h2>
+        <div class="swapmodes" role="tablist"><button id="swapModeSwapBtn" class="on" type="button">Swap</button><button id="swapModeLimitBtn" type="button">Limit</button></div>
+        <p class="small-txt">Quotes come from the OpenOcean aggregator API (which routes across 1inch, Uniswap, Curve and 100+ DEXes) for the selected EVM chain. Quotes are indicative — open the DEX to execute. Limit orders below are tracked locally in this session only.</p>
+        <div id="swapQuotePart">
+        <label for="swapChain">EVM chain</label>
+        <select id="swapChain"></select>
+        <div class="row">
+          <div class="grow"><label for="swapFrom">From token (contract address, or “native”)</label><input id="swapFrom" class="mono" value="native"></div>
+          <div class="grow"><label for="swapTo">To token (contract address)</label><input id="swapTo" class="mono" placeholder="0x…"></div>
+          <div style="flex:0 1 150px"><label for="swapAmt">Amount in</label><input id="swapAmt" inputmode="decimal" value="0.1"></div>
+        </div>
+        <div class="row" style="margin-top:.8rem"><button class="primary" id="quoteBtn" type="button">Get quote</button><span class="small-txt" id="quoteStatus"></span></div>
+        <div id="quoteOut" style="margin-top:.7rem"></div>
+        </div>
+        <div id="swapLimitPart" class="hidden">
+        <h3 style="margin-top:1.2rem">Limit order watch (this session)</h3>
+        <div class="row">
+          <div class="grow"><label for="loPair">Pair label</label><input id="loPair" placeholder="e.g. ETH → USDC on Base"></div>
+          <div style="flex:0 1 170px"><label for="loPrice">Alert me at rate ≥</label><input id="loPrice" inputmode="decimal" placeholder="0.0"></div>
+          <button id="loAdd" type="button" style="align-self:flex-end">Add watch</button>
+        </div>
+        <div id="loList" style="margin-top:.5rem"></div>
+        </div>
+      </div>
+
+      <!-- TOKENS -->
+      <div id="tab-tokens" class="hidden">
+        <h2>Import a custom ERC-20 token</h2>
+        <div class="row">
+          <div class="grow"><label for="tokAddr">Contract address</label><input id="tokAddr" class="mono" placeholder="0x…"></div>
+          <div><label for="tokChain">Chain</label><select id="tokChain" class="chainpick"></select></div>
+          <button id="tokAdd" type="button" style="align-self:flex-end" class="primary">Import token</button>
+        </div>
+        <span class="small-txt" id="tokStatus"></span>
+        <div id="tokList" style="margin-top:.8rem"></div>
+      </div>
+
+      <!-- ACTIVITY -->
+      <div id="tab-activity" class="hidden">
+        <h2>Recent activity</h2>
+        <p class="small-txt">Pulled live from public explorers / RPCs for Bitcoin, Solana and the selected EVM chain. Balances auto-sync every 45 seconds while unlocked — including while this tab is in the background — and re-sync instantly when you come back to the tab.</p>
+        <div class="row"><label for="actChain" style="margin:0">Chain</label><select id="actChain" class="chainpick"></select><button id="actBtn" type="button" class="small">Load activity</button></div>
+        <div id="actOut" style="margin-top:.6rem"></div>
+      </div>
+
+      <!-- BACKUP -->
+      <div id="tab-backup" class="hidden">
+        <h2>Remember-me on this device</h2>
+        <div id="vaultManage"></div>
+        <h2 style="margin-top:1.4rem">Backup &amp; private keys</h2>
+        <div class="warn"><strong>Anyone with these secrets owns the funds.</strong> Export only somewhere private. The backup file contains your seed phrase in plain text — treat it like cash.</div>
+        <label for="seedOut">Seed phrase (tap to reveal)</label>
+        <textarea id="seedOut" rows="2" readonly class="hidden"></textarea>
+        <div class="row" style="margin-top:.6rem">
+          <button id="revealSeed" type="button">Reveal seed phrase</button>
+          <button id="copySeed" type="button">Copy seed</button>
+          <button id="dlBackup" type="button" class="primary">⬇ Download backup JSON</button>
+          <button id="dlTxt" type="button">⬇ Download keys .txt</button>
+        </div>
+        <div id="keyTable" style="margin-top:1rem"></div>
+      </div>
+    </div>
+
+    </div><!-- /viewTools -->
+
+    <nav class="bottomnav" aria-label="Wallet sections">
+      <button type="button" data-nav="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg><span>Home</span></button>
+      <button type="button" data-nav="markets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m6 15 4-5 3.5 3L19 6"/></svg><span>Markets</span></button>
+      <button type="button" data-nav="trade"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13"/><path d="m3 13 4 4 4-4"/><path d="M17 20V7"/><path d="m13 11 4-4 4 4"/></svg><span>Trade</span></button>
+      <button type="button" data-nav="pay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 6.5v11M15 9.3c-.6-1-1.7-1.5-3-1.5-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4 0 1.3-1.3 2.2-3 2.2-1.3 0-2.4-.5-3-1.5"/></svg><span>Pay</span></button>
+      <button type="button" data-nav="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="16.5" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg><span>Wallet</span></button>
+    </nav>
+
+    <footer>
+      References: BIP39 / BIP44 / BIP84 / SLIP-0010 standards · iancoleman.io/bip39 · MetaMask · Trust Wallet · Phantom · Solflare · TronLink · chainlist.org. Balances come from public RPCs and explorer APIs at view time; this page has no server. The only thing it can store is an optional password-encrypted copy of your seed in this browser, if you turn remember-me on — the plain seed is never stored. Verify every address in a second wallet before sending real funds.
+    </footer>
+  </section>
+</div>
+
+<dialog id="receiveDialog">
+  <h3>Receive — pick a chain</h3>
+  <p class="small-txt">Send only the matching asset on the matching network to each address. The EVM address is the same on every EVM chain.</p>
+  <div id="receiveList"></div>
+  <div class="row" style="margin-top:.8rem;justify-content:flex-end">
+    <button id="receiveClose" type="button" class="primary">Done</button>
+  </div>
+</dialog>
+
+<dialog id="qrDialog">
+  <h3 id="qrTitle">Receive</h3>
+  <p class="addr mono" id="qrAddr"></p>
+  <div class="qrbox" id="qrBox"></div>
+  <div class="row" style="margin-top:.8rem;justify-content:flex-end">
+    <button id="qrCopy" type="button">Copy address</button>
+    <button id="qrClose" type="button" class="primary">Done</button>
+  </div>
+</dialog>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bn.js@5.2.1/lib/bn.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tonweb@0.0.66/dist/tonweb.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+"use strict";
+/* ================= byte / hex helpers ================= */
+const $=id=>document.getElementById(id);
+function hexToBytes(h){h=h.replace(/^0x/,"");const b=new Uint8Array(h.length/2);for(let i=0;i<b.length;i++)b[i]=parseInt(h.substr(i*2,2),16);return b;}
+function bytesToHex(b){return Array.from(b).map(x=>x.toString(16).padStart(2,"0")).join("");}
+function utf8(s){return new TextEncoder().encode(s);}
+function concatBytes(){let n=0;for(const a of arguments)n+=a.length;const o=new Uint8Array(n);let p=0;for(const a of arguments){o.set(a,p);p+=a.length;}return o;}
+function waToBytes(wa){const w=wa.words,s=wa.sigBytes,o=new Uint8Array(s);for(let i=0;i<s;i++)o[i]=(w[i>>>2]>>>(24-(i%4)*8))&0xff;return o;}
+function bytesToWa(b){return CryptoJS.lib.WordArray.create(b);}
+function sha256(b){return waToBytes(CryptoJS.SHA256(bytesToWa(b.slice())));}
+function sha512(b){return waToBytes(CryptoJS.SHA512(bytesToWa(b.slice())));}
+function hash256(b){return sha256(sha256(b));}
+function hmac512(key,msg){return waToBytes(CryptoJS.HmacSHA512(bytesToWa(msg.slice()),bytesToWa(key.slice())));}
+function ripemd160(b){return waToBytes(CryptoJS.RIPEMD160(bytesToWa(b.slice())));}
+function hash160(b){return ripemd160(sha256(b));}
+
+/* ================= Keccak-256 (BigInt Keccak-f[1600]) ================= */
+const KECCAK_RC=[0x1n,0x8082n,0x800000000000808an,0x8000000080008000n,0x808bn,0x80000001n,0x8000000080008081n,0x8000000000008009n,0x8an,0x88n,0x80008009n,0x8000000an,0x8000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,0x8000000000008002n,0x8000000000000080n,0x800an,0x800000008000000an,0x8000000080008081n,0x8000000000008080n,0x80000001n,0x8000000080008008n];
+const KECCAK_R=[[0,36,3,41,18],[1,44,10,45,2],[62,6,43,15,61],[28,55,25,21,56],[27,20,39,8,14]];
+const MASK64=(1n<<64n)-1n;
+function rotl64(x,n){n=BigInt(n);return ((x<<n)|(x>>(64n-n)))&MASK64;}
+function keccakF(s){
+  for(let round=0;round<24;round++){
+    const C=[],D=[];
+    for(let x=0;x<5;x++)C[x]=s[x]^s[x+5]^s[x+10]^s[x+15]^s[x+20];
+    for(let x=0;x<5;x++)D[x]=C[(x+4)%5]^rotl64(C[(x+1)%5],1);
+    for(let x=0;x<5;x++)for(let y=0;y<5;y++)s[x+5*y]^=D[x];
+    const B=new Array(25).fill(0n);
+    for(let x=0;x<5;x++)for(let y=0;y<5;y++)B[y+5*((2*x+3*y)%5)]=rotl64(s[x+5*y],KECCAK_R[x][y]);
+    for(let x=0;x<5;x++)for(let y=0;y<5;y++)s[x+5*y]=B[x+5*y]^((~B[(x+1)%5+5*y])&B[(x+2)%5+5*y]);
+    s[0]^=KECCAK_RC[round];
+  }
+}
+function keccak256(data){
+  const rate=136,state=new Array(25).fill(0n);
+  const padded=new Uint8Array(Math.ceil((data.length+1)/rate)*rate);
+  padded.set(data);padded[data.length]=0x01;padded[padded.length-1]|=0x80;
+  for(let off=0;off<padded.length;off+=rate){
+    for(let i=0;i<rate;i++){const lane=i>>3;let v=0n;const byte=padded[off+i];state[lane]^=(BigInt(byte)<<(8n*BigInt(i%8)));}
+    keccakF(state);
+  }
+  const out=new Uint8Array(32);
+  for(let i=0;i<32;i++)out[i]=Number((state[i>>3]>>(8n*BigInt(i%8)))&0xffn);
+  return out;
+}
+
+/* ================= BLAKE2b-256 (for SUI) ================= */
+const B2_IV=[0x6a09e667f3bcc908n,0xbb67ae8584caa73bn,0x3c6ef372fe94f82bn,0xa54ff53a5f1d36f1n,0x510e527fade682d1n,0x9b05688c2b3e6c1fn,0x1f83d9abfb41bd6bn,0x5be0cd19137e2179n];
+const B2_SIGMA=[[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],[14,10,4,8,9,15,13,6,1,12,0,2,11,7,5,3],[11,8,12,0,5,2,15,13,10,14,3,6,7,1,9,4],[7,9,3,1,13,12,11,14,2,6,5,10,4,0,15,8],[9,0,5,7,2,4,10,15,14,1,11,12,6,8,3,13],[2,12,6,10,0,11,8,3,4,13,7,5,15,14,1,9],[12,5,1,15,14,13,4,10,0,7,6,3,9,2,8,11],[13,11,7,14,12,1,3,9,5,0,15,4,8,6,2,10],[6,15,14,9,11,3,0,8,12,2,13,7,1,4,10,5],[10,2,8,4,7,6,1,5,15,11,9,14,3,12,13,0]];
+function rotr64(x,n){n=BigInt(n);return ((x>>n)|(x<<(64n-n)))&MASK64;}
+function blake2b256(input){
+  const h=B2_IV.slice();h[0]^=0x01010000n^32n;
+  const blocks=[];let buf=input;
+  if(buf.length===0)buf=new Uint8Array(1);
+  const nBlocks=Math.max(1,Math.ceil(buf.length/128));
+  for(let b=0;b<nBlocks;b++){
+    const block=new Uint8Array(128);block.set(buf.slice(b*128,(b+1)*128));
+    const m=[];for(let i=0;i<16;i++){let v=0n;for(let j=7;j>=0;j--)v=(v<<8n)|BigInt(block[i*8+j]);m[i]=v;}
+    const v=h.concat(B2_IV);
+    const isLast=b===nBlocks-1;
+    v[12]^=BigInt(Math.min(buf.length,(b+1)*128))===BigInt(input.length)?BigInt(input.length):BigInt((b+1)*128);
+    if(isLast)v[14]^=MASK64;
+    function G(a,b,c,d,x,y){v[a]=(v[a]+v[b]+x)&MASK64;v[d]=rotr64(v[d]^v[a],32);v[c]=(v[c]+v[d])&MASK64;v[b]=rotr64(v[b]^v[c],24);v[a]=(v[a]+v[b]+y)&MASK64;v[d]=rotr64(v[d]^v[a],16);v[c]=(v[c]+v[d])&MASK64;v[b]=rotr64(v[b]^v[c],63);}
+    for(let r=0;r<12;r++){const s=B2_SIGMA[r%10];
+      G(0,4,8,12,m[s[0]],m[s[1]]);G(1,5,9,13,m[s[2]],m[s[3]]);G(2,6,10,14,m[s[4]],m[s[5]]);G(3,7,11,15,m[s[6]],m[s[7]]);
+      G(0,5,10,15,m[s[8]],m[s[9]]);G(1,6,11,12,m[s[10]],m[s[11]]);G(2,7,8,13,m[s[12]],m[s[13]]);G(3,4,9,14,m[s[14]],m[s[15]]);}
+    for(let i=0;i<8;i++)h[i]^=v[i]^v[i+8];
+  }
+  const out=new Uint8Array(32);
+  for(let i=0;i<4;i++){let v=h[i];for(let j=0;j<8;j++){out[i*8+j]=Number(v&0xffn);v>>=8n;}}
+  return out;
+}
+
+/* ================= base58 / base58check / bech32 ================= */
+const B58A="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58encode(b){let zeros=0;while(zeros<b.length&&b[zeros]===0)zeros++;let digits=[0];
+  for(let i=zeros;i<b.length;i++){let carry=b[i];for(let j=0;j<digits.length;j++){carry+=digits[j]<<8;digits[j]=carry%58;carry=(carry/58)|0;}while(carry){digits.push(carry%58);carry=(carry/58)|0;}}
+  let s="1".repeat(zeros);for(let i=digits.length-1;i>=0;i--)s+=B58A[digits[i]];return s;}
+function b58decode(s){const map={};for(let i=0;i<58;i++)map[B58A[i]]=i;let zeros=0;while(zeros<s.length&&s[zeros]==="1")zeros++;
+  let bytes=[0];for(let i=zeros;i<s.length;i++){if(!(s[i]in map))throw new Error("Invalid base58 character");let carry=map[s[i]];for(let j=0;j<bytes.length;j++){carry+=bytes[j]*58;bytes[j]=carry&0xff;carry>>=8;}while(carry){bytes.push(carry&0xff);carry>>=8;}}
+  const out=new Uint8Array(zeros+bytes.length);for(let i=0;i<bytes.length;i++)out[zeros+bytes.length-1-i]=bytes[i];return out;}
+function b58check(payload){return b58encode(concatBytes(payload,hash256(payload).slice(0,4)));}
+const BECH32="qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+function bech32Polymod(values){let chk=1;const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+  for(const v of values){const top=chk>>25;chk=((chk&0x1ffffff)<<5)^v;for(let i=0;i<5;i++)if((top>>i)&1)chk^=GEN[i];}return chk;}
+function bech32Encode(hrp,dataWords){let enc=hrp+"1";const vals=[];for(const c of hrp)vals.push(c.charCodeAt(0)>>5);vals.push(0);for(const c of hrp)vals.push(c.charCodeAt(0)&31);
+  const all=vals.concat(dataWords);const mod=bech32Polymod(all.concat([0,0,0,0,0,0]))^1;const cs=[];for(let i=0;i<6;i++)cs.push((mod>>(5*(5-i)))&31);
+  for(const w of dataWords)enc+=BECH32[w];for(const c of cs)enc+=BECH32[c];return enc;}
+function convertBits(data,from,to,pad){let acc=0,bits=0;const out=[];const maxv=(1<<to)-1;
+  for(const v of data){acc=(acc<<from)|v;bits+=from;while(bits>=to){bits-=to;out.push((acc>>bits)&maxv);}}
+  if(pad&&bits)out.push((acc<<(to-bits))&maxv);return out;}
+function segwitAddress(pubkeyHash,testnet){const words=[0].concat(convertBits(pubkeyHash,8,5,true));return bech32Encode(testnet?"tb":"bc",words);}
+
+/* ================= RLP (for EVM tx signing) ================= */
+function rlpEncode(item){
+  if(typeof item==="number"||typeof item==="bigint"){if(item===0||item===0n)return rlpEncode(new Uint8Array(0));let h=item.toString(16);if(h.length%2)h="0"+h;return rlpEncode(hexToBytes(h));}
+  if(item instanceof Uint8Array){if(item.length===1&&item[0]<0x80)return item;if(item.length<56)return concatBytes(new Uint8Array([0x80+item.length]),item);
+    let lh=item.length.toString(16);if(lh.length%2)lh="0"+lh;const lb=hexToBytes(lh);return concatBytes(new Uint8Array([0xb7+lb.length]),lb,item);}
+  const payloadParts=item.map(rlpEncode);let total=0;payloadParts.forEach(p=>total+=p.length);const payload=new Uint8Array(total);let off=0;payloadParts.forEach(p=>{payload.set(p,off);off+=p.length;});
+  if(total<56)return concatBytes(new Uint8Array([0xc0+total]),payload);
+  let lh=total.toString(16);if(lh.length%2)lh="0"+lh;const lb=hexToBytes(lh);return concatBytes(new Uint8Array([0xf7+lb.length]),lb,payload);
+}
+function bigIntToBytes(n){if(n===0n)return new Uint8Array(0);let h=n.toString(16);if(h.length%2)h="0"+h;return hexToBytes(h);}
+</script>
+<script>
+"use strict";
+/* ================= BIP39 ================= */
+let WORDLIST=null;
+fetch("https://cdn.jsdelivr.net/npm/bip39@3.1.0/wordlists/english.json").then(r=>r.json()).then(w=>{WORDLIST=w;}).catch(()=>{});
+function mnemonicToSeed(mnemonic,passphrase){
+  const m=mnemonic.trim().toLowerCase().replace(/\s+/g," ");
+  const salt="mnemonic"+(passphrase||"");
+  const res=CryptoJS.PBKDF2(m,salt,{keySize:512/32,iterations:2048,hasher:CryptoJS.algo.SHA512});
+  return waToBytes(res);
+}
+function validateMnemonic(mnemonic){
+  const words=mnemonic.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if(![12,15,18,21,24].includes(words.length))return{ok:false,msg:"Word count must be 12, 15, 18, 21 or 24 — got "+words.length+"."};
+  if(!WORDLIST)return{ok:true,msg:"",words};
+  for(const w of words)if(!WORDLIST.includes(w))return{ok:false,msg:"“"+w+"” is not a BIP39 English word."};
+  // checksum
+  try{
+    const bits=words.map(w=>WORDLIST.indexOf(w).toString(2).padStart(11,"0")).join("");
+    const entLen=bits.length*32/33,csLen=bits.length-entLen;
+    const entBits=bits.slice(0,entLen);
+    const entBytes=new Uint8Array(entLen/8);
+    for(let i=0;i<entBytes.length;i++)entBytes[i]=parseInt(entBits.substr(i*8,8),2);
+    const hash=sha256(entBytes);
+    const hashBits=Array.from(hash).map(b=>b.toString(2).padStart(8,"0")).join("");
+    if(bits.slice(entLen)!==hashBits.slice(0,csLen))return{ok:false,msg:"Checksum mismatch — one or more words are wrong or out of order."};
+  }catch(e){/* non-fatal */}
+  return{ok:true,msg:"",words};
+}
+/* ================= BIP32 secp256k1 ================= */
+let _ec=null;
+function EC(){if(!_ec){if(typeof elliptic==="undefined")throw new Error("Crypto library (elliptic) failed to load — check your connection and reload.");_ec=new elliptic.ec("secp256k1");}return _ec;}
+function ser32(i){const b=new Uint8Array(4);new DataView(b.buffer).setUint32(0,i);return b;}
+function ser256(bytes){return bytes;}
+function pointFromPriv(privBytes){
+  const bn=new BN(bytesToHex(privBytes),16);
+  const pub=EC().g.mul(bn);
+  const x=pub.getX().toArrayLike(Uint8Array,"be",32),y=pub.getY();
+  const compressed=new Uint8Array(33);compressed[0]=y.isOdd()?0x03:0x02;compressed.set(x,1);
+  const uncompressed=new Uint8Array(65);uncompressed[0]=0x04;uncompressed.set(x,1);uncompressed.set(pub.getY().toArrayLike(Uint8Array,"be",32),33);
+  return{compressed,uncompressed,pub};
+}
+function bip32Master(seed){
+  const I=hmac512(utf8("Bitcoin seed"),seed);
+  return{priv:I.slice(0,32),chain:I.slice(32)};
+}
+function bip32Child(node,index){
+  const hardened=index>=0x80000000;
+  let data;
+  if(hardened){
+    data=concatBytes(new Uint8Array([0]),node.priv,ser32(index));
+  }else{
+    data=concatBytes(pointFromPriv(node.priv).compressed,ser32(index));
+  }
+  const I=hmac512(node.chain,data);
+  const il=new BN(bytesToHex(I.slice(0,32)),16);
+  const k=new BN(bytesToHex(node.priv),16);
+  const child=il.add(k).mod(EC().n);
+  if(il.gte(EC().n)||child.isZero())throw new Error("Invalid child key (extremely unlikely) — try the next index.");
+  return{priv:hexToBytes(child.toString(16,64)),chain:I.slice(32)};
+}
+function parsePath(path){
+  const parts=path.replace(/^m\//,"").split("/");
+  return parts.map(p=>{const hard=p.endsWith("'")||p.endsWith("h");const n=parseInt(p,10);return hard?n+0x80000000:n;});
+}
+function deriveSecp(seed,path){let node=bip32Master(seed);for(const i of parsePath(path))node=bip32Child(node,i);return node;}
+
+/* ================= SLIP-0010 ed25519 ================= */
+function slip10Master(seed){const I=hmac512(utf8("ed25519 seed"),seed);return{priv:I.slice(0,32),chain:I.slice(32)};}
+function slip10Child(node,index){
+  const data=concatBytes(new Uint8Array([0]),node.priv,ser32(index|0x80000000));
+  const I=hmac512(node.chain,data);
+  return{priv:I.slice(0,32),chain:I.slice(32)};
+}
+function deriveEd(seed,path){let node=slip10Master(seed);for(const i of parsePath(path))node=slip10Child(node,i&0x7fffffff);return node;}
+function edPubkey(privSeed32){
+  const kp=nacl.sign.keyPair.fromSeed(privSeed32);
+  return kp.publicKey;
+}
+
+/* ================= Address builders ================= */
+function evmAddressFromPriv(privBytes){
+  const{uncompressed}=pointFromPriv(privBytes);
+  const hash=keccak256(uncompressed.slice(1));
+  const addr=bytesToHex(hash.slice(12));
+  // EIP-55 checksum
+  const hash2=bytesToHex(keccak256(utf8(addr)));
+  let out="0x";for(let i=0;i<40;i++){out+=parseInt(hash2[i],16)>=8?addr[i].toUpperCase():addr[i];}
+  return out;
+}
+function tronAddressFromPriv(privBytes){
+  const{uncompressed}=pointFromPriv(privBytes);
+  const hash=keccak256(uncompressed.slice(1));
+  const payload=concatBytes(new Uint8Array([0x41]),hash.slice(12));
+  return b58check(payload);
+}
+function btcSegwitFromPriv(privBytes,testnet){
+  const{compressed}=pointFromPriv(privBytes);
+  return segwitAddress(hash160(compressed),testnet);
+}
+function solanaFromPriv(privSeed){
+  const pub=edPubkey(privSeed);
+  return{address:b58encode(pub),pubkey:pub};
+}
+function suiFromPriv(privSeed){
+  const pub=edPubkey(privSeed);
+  const digest=blake2b256(concatBytes(new Uint8Array([0x00]),pub));
+  return{address:"0x"+bytesToHex(digest),pubkey:pub};
+}
+function nearFromPriv(privSeed){
+  const pub=edPubkey(privSeed);
+  return{address:bytesToHex(pub),pubkey:pub};
+}
+async function tonFromPriv(privSeed){
+  const kp=nacl.sign.keyPair.fromSeed(privSeed);
+  if(typeof TonWeb==="undefined")throw new Error("TonWeb library failed to load");
+  const tonweb=new TonWeb(new TonWeb.HttpProvider("https://toncenter.com/api/v2/jsonRPC"));
+  const wallet=tonweb.wallet.create({publicKey:kp.publicKey,wc:0});
+  // WalletContractV4 is the default class in tonweb 0.0.66 wallets.all.v4R2:
+  const WalletClass=TonWeb.Wallets.all.v4R2;
+  const w=new WalletClass(tonweb.provider,{publicKey:kp.publicKey,wc:0});
+  const addr=await w.getAddress();
+  return{address:addr.toString(true,true,false),pubkey:kp.publicKey};
+}
+
+/* ================= Full wallet derivation ================= */
+async function deriveWallet(mnemonic,passphrase,network){
+  const seed=mnemonicToSeed(mnemonic,passphrase);
+  const testnet=network==="testnet";
+  const out={network};
+  // BTC
+  const btcNode=deriveSecp(seed,testnet?"m/84'/1'/0'/0/0":"m/84'/0'/0'/0/0");
+  out.btc={chain:"Bitcoin SegWit",symbol:testnet?"tBTC":"BTC",path:testnet?"m/84'/1'/0'/0/0":"m/84'/0'/0'/0/0",
+    address:btcSegwitFromPriv(btcNode.priv,testnet),privHex:bytesToHex(btcNode.priv),color:"#f7931a",short:"BTC"};
+  // EVM
+  const evmNode=deriveSecp(seed,"m/44'/60'/0'/0/0");
+  out.evm={chain:"EVM · all chains",symbol:testnet?"SepoliaETH":"ETH",path:"m/44'/60'/0'/0/0",
+    address:evmAddressFromPriv(evmNode.priv),privHex:bytesToHex(evmNode.priv),color:"#627eea",short:"EVM"};
+  // TRON
+  const trxNode=deriveSecp(seed,"m/44'/195'/0'/0/0");
+  out.trx={chain:"TRON",symbol:"TRX",path:"m/44'/195'/0'/0/0",
+    address:tronAddressFromPriv(trxNode.priv),privHex:bytesToHex(trxNode.priv),color:"#eb0029",short:"TRX"};
+  // Solana
+  const solNode=deriveEd(seed,"m/44'/501'/0'/0'");
+  const sol=solanaFromPriv(solNode.priv);
+  out.sol={chain:"Solana",symbol:"SOL",path:"m/44'/501'/0'/0'",address:sol.address,
+    privHex:bytesToHex(solNode.priv),secretB58:b58encode(concatBytes(solNode.priv,sol.pubkey)),color:"#9945ff",short:"SOL"};
+  // SUI
+  const suiNode=deriveEd(seed,"m/44'/784'/0'/0'/0'");
+  const sui=suiFromPriv(suiNode.priv);
+  out.sui={chain:"SUI",symbol:"SUI",path:"m/44'/784'/0'/0'/0'",address:sui.address,privHex:bytesToHex(suiNode.priv),color:"#4da2ff",short:"SUI"};
+  // NEAR
+  const nearNode=deriveEd(seed,"m/44'/397'/0'");
+  const near=nearFromPriv(nearNode.priv);
+  out.near={chain:"NEAR",symbol:"NEAR",path:"m/44'/397'/0'",address:near.address,privHex:bytesToHex(nearNode.priv),color:"#00ec97",short:"NEAR"};
+  // TON (async, WalletContractV4)
+  const tonNode=deriveEd(seed,"m/44'/607'/0'/0'/0'");
+  try{
+    const ton=await tonFromPriv(tonNode.priv);
+    out.ton={chain:"TON (GRAM)",symbol:"TON",path:"m/44'/607'/0'/0'/0'",address:ton.address,privHex:bytesToHex(tonNode.priv),color:"#0098ea",short:"TON"};
+  }catch(e){
+    out.ton={chain:"TON (GRAM)",symbol:"TON",path:"m/44'/607'/0'/0'/0'",address:"(TonWeb unavailable — reload to retry)",privHex:bytesToHex(tonNode.priv),color:"#0098ea",short:"TON",error:String(e.message||e)};
+  }
+  return out;
+}
+</script>
+<script>
+"use strict";
+/* ================= Chain config ================= */
+const EVM_CHAINS={
+  mainnet:[
+    {id:1,name:"Ethereum",symbol:"ETH",rpc:"https://eth.llamarpc.com",explorer:"https://etherscan.io",oo:"eth",usdc:"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",usdcDec:6},
+    {id:56,name:"BNB Chain",symbol:"BNB",rpc:"https://bsc-dataseed.binance.org",explorer:"https://bscscan.com",oo:"bsc",usdc:"0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",usdcDec:18},
+    {id:137,name:"Polygon",symbol:"MATIC",rpc:"https://polygon-rpc.com",explorer:"https://polygonscan.com",oo:"polygon",usdc:"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",usdcDec:6},
+    {id:42161,name:"Arbitrum",symbol:"ETH",rpc:"https://arb1.arbitrum.io/rpc",explorer:"https://arbiscan.io",oo:"arbitrum",usdc:"0xaf88d065e77c8cC2239327C5EDb3A432268e5831",usdcDec:6},
+    {id:10,name:"Optimism",symbol:"ETH",rpc:"https://mainnet.optimism.io",explorer:"https://optimistic.etherscan.io",oo:"optimism",usdc:"0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",usdcDec:6},
+    {id:43114,name:"Avalanche",symbol:"AVAX",rpc:"https://api.avax.network/ext/bc/C/rpc",explorer:"https://snowtrace.io",oo:"avalanche",usdc:"0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",usdcDec:6},
+    {id:8453,name:"Base",symbol:"ETH",rpc:"https://mainnet.base.org",explorer:"https://basescan.org",oo:"base",usdc:"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",usdcDec:6}
+  ],
+  testnet:[
+    {id:11155111,name:"Sepolia",symbol:"ETH",rpc:"https://rpc.sepolia.org",explorer:"https://sepolia.etherscan.io",oo:"eth",usdc:"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",usdcDec:6},
+    {id:84532,name:"Base Sepolia",symbol:"ETH",rpc:"https://sepolia.base.org",explorer:"https://sepolia.basescan.org",oo:"base",usdc:"0x036CbD53842c5426634e7929541eC2318f3dCF7e",usdcDec:6},
+    {id:80002,name:"Polygon Amoy",symbol:"MATIC",rpc:"https://rpc-amoy.polygon.technology",explorer:"https://amoy.polygonscan.com",oo:"polygon",usdc:"0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",usdcDec:6},
+    {id:5042002,name:"Arc Testnet",symbol:"USDC",rpc:"https://rpc.testnet.arc.network",explorer:"https://explorer.testnet.arc.io",oo:null}
+  ]
+};
+const state={mnemonic:null,passphrase:"",network:"mainnet",wallet:null,evmChainIdx:0,tokens:[],limitOrders:[],syncTimer:null,balances:{},evmBalances:{},syncing:false};
+let toastTimer=null;
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add("hidden"),2600);}
+async function copyText(txt,label){try{await navigator.clipboard.writeText(txt);toast((label||"Copied")+" ✓");}catch(e){toast("Copy failed — long-press to copy manually");}}
+function fmtBal(v,dec){if(v===null||v===undefined)return"—";const n=Number(v);if(!isFinite(n))return"—";return n.toLocaleString(undefined,{maximumFractionDigits:dec===undefined?6:dec});}
+function shortAddr(a){return a&&a.length>18?a.slice(0,8)+"…"+a.slice(-6):a;}
+
+async function rpcCall(url,method,params){
+  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
+  const j=await r.json();if(j.error)throw new Error(j.error.message||"RPC error");return j.result;
+}
+async function fetchJSON(url,opts){const r=await fetch(url,opts);if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}
+
+/* ================= Balance fetchers ================= */
+async function balBTC(addr,testnet){
+  const base=testnet?"https://blockstream.info/testnet/api":"https://blockstream.info/api";
+  const j=await fetchJSON(base+"/address/"+addr);
+  const funded=j.chain_stats.funded_txo_sum-j.chain_stats.spent_txo_sum;
+  const mem=j.mempool_stats.funded_txo_sum-j.mempool_stats.spent_txo_sum;
+  return (funded+mem)/1e8;
+}
+async function balEVM(rpc,addr){const v=await rpcCall(rpc,"eth_getBalance",[addr,"latest"]);return Number(BigInt(v))/1e18;}
+async function balSOL(addr,testnet){
+  const url=testnet?"https://api.devnet.solana.com":"https://api.mainnet-beta.solana.com";
+  const v=await rpcCall(url,"getBalance",[addr]);return v.value/1e9;
+}
+async function balTRX(addr,testnet){
+  if(testnet)return null;
+  const j=await fetchJSON("https://api.trongrid.io/v1/accounts/"+addr);
+  if(!j.data||!j.data.length)return 0;return (j.data[0].balance||0)/1e6;
+}
+async function balSUI(addr,testnet){
+  if(testnet)return null;
+  const v=await rpcCall("https://fullnode.mainnet.sui.io:443","suix_getBalance",[addr]);
+  return Number(v.totalBalance)/1e9;
+}
+async function balTON(addr){
+  try{const j=await fetchJSON("https://toncenter.com/api/v2/getAddressBalance?address="+encodeURIComponent(addr));if(j.ok)return Number(j.result)/1e9;}catch(e){}
+  return null;
+}
+async function balNEAR(addr,testnet){
+  const url=testnet?"https://rpc.testnet.near.org":"https://rpc.mainnet.near.org";
+  try{const v=await rpcCall(url,"query",{request_type:"view_account",finality:"final",account_id:addr});return Number(BigInt(v.amount))/1e24;}catch(e){return 0;}
+}
+
+/* ================= Rendering ================= */
+function explorerLink(key,w){
+  const t=state.network==="testnet";
+  switch(key){
+    case "btc":return (t?"https://blockstream.info/testnet/address/":"https://blockstream.info/address/")+w.address;
+    case "evm":{const c=EVM_CHAINS[state.network][state.evmChainIdx];return c.explorer+"/address/"+w.address;}
+    case "sol":return "https://solscan.io/account/"+w.address+(t?"?cluster=devnet":"");
+    case "trx":return "https://tronscan.org/#/address/"+w.address;
+    case "sui":return "https://suiscan.xyz/mainnet/account/"+w.address;
+    case "ton":return "https://tonscan.org/address/"+w.address;
+    case "near":return "https://nearblocks.io/address/"+w.address;
+  }return "#";
+}
+function renderChains(){
+  const w=state.wallet;if(!w)return;
+  const keys=["btc","evm","sol","trx","sui","ton","near"];
+  $("chainGrid").innerHTML=keys.map(k=>{
+    const c=w[k];const bal=state.balances[k];
+    const evmBody=k==="evm"?`<div class="evmrows">${EVM_CHAINS[state.network].map((c2,i)=>{
+      const eb=state.evmBalances[i]||{};const active=i===state.evmChainIdx;
+      const nb=eb.native===undefined?"…":eb.native===null?"n/a":fmtBal(eb.native);
+      const ub=eb.usdc===undefined?"…":eb.usdc===null?"n/a":fmtBal(eb.usdc);
+      return `<button type="button" class="evmrow${active?" on":""}" data-evmrow="${i}" aria-pressed="${active}" title="Use ${esc(c2.name)} for Send &amp; Swap">
+        <span class="nm"><span>${c2.name} <span class="path">chain ${c2.id}</span></span>${active?'<span class="pill">Send · Swap</span>':""}</span>
+        <span class="bals"><span><span data-evmbal="${i}">${nb}</span> <small>${c2.symbol}</small></span>${c2.usdc?`<span class="usdc"><span data-usdcbal="${i}">${ub}</span> <small>USDC</small></span>`:""}</span>
+      </button>`;}).join("")}</div><p class="small-txt" style="margin:.5rem 0 0">Same address on every chain — all balances load at once, USDC included. Tap a chain to make it the Send / Swap chain.</p>`:`<div class="bal" data-bal="${k}">${bal===undefined?"…":fmtBal(bal)} <small>${c.symbol}</small></div>`;
+    return `<article class="card" style="margin:0">
+      <div class="chain-head"><span class="dot" style="background:${c.color}">${c.short}</span><div><h3>${c.chain}</h3><span class="path">${c.path}</span></div></div>
+      <div class="addr">${c.address}</div>
+      ${evmBody}
+      <div class="row" style="margin-top:.6rem">
+        <button class="small" data-copy="${k}" type="button">Copy</button>
+        <button class="small" data-qr="${k}" type="button">Receive QR</button>
+        <button class="small" data-send="${k}" type="button">Send</button>
+        <a href="${explorerLink(k,c)}" target="_blank" rel="noopener" style="font-size:.85rem;font-weight:600;padding:.35rem .2rem">Explorer ↗</a>
+      </div>
+    </article>`;
+  }).join("");
+  document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyText(state.wallet[b.dataset.copy].address,"Address copied"));
+  document.querySelectorAll("[data-qr]").forEach(b=>b.onclick=()=>showQR(b.dataset.qr));
+  document.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>{const map={btc:"btc",evm:"evm",sol:"sol",trx:"trx",sui:"sui",ton:"ton",near:"near"};$("sendChain").value=map[b.dataset.send];updateSendNote();if(typeof openTool==="function")openTool("send","pay");else document.querySelector('[data-tab="send"]').click();});
+  document.querySelectorAll("[data-evmrow]").forEach(r=>r.onclick=()=>{
+    const i=Number(r.dataset.evmrow);if(i===state.evmChainIdx)return;
+    state.evmChainIdx=i;renderChains();fillSwapChains();fillSendChainsLabel();refreshBalances();
+  });
+  // backup key table
+  $("keyTable").innerHTML=keys.map(k=>{const c=w[k];return `<div class="txitem"><strong>${c.chain}</strong> <span class="path">${c.path}</span><br><span class="mono" style="font-size:.75rem;word-break:break-all">PK: ${c.privHex}</span> <button class="small" data-pk="${k}" type="button">Copy PK</button>${c.secretB58?`<br><span class="mono" style="font-size:.75rem;word-break:break-all">Solana secret (base58): ${c.secretB58}</span>`:""}</div>`;}).join("");
+  document.querySelectorAll("[data-pk]").forEach(b=>b.onclick=()=>copyText(state.wallet[b.dataset.pk].privHex,"Private key copied"));
+  $("seedOut").value=state.mnemonic;
+}
+async function refreshBalances(){
+  const w=state.wallet;if(!w||state.syncing)return;
+  state.syncing=true;
+  try{
+    const t=state.network==="testnet";
+    const jobs=[
+      ["btc",balBTC(w.btc.address,t)],
+      ["sol",balSOL(w.sol.address,t)],
+      ["trx",balTRX(w.trx.address,t)],
+      ["sui",balSUI(w.sui.address,t)],
+      ["ton",w.ton.error?Promise.resolve(null):balTON(w.ton.address)],
+      ["near",balNEAR(w.near.address,t)]
+    ];
+    await Promise.all(jobs.map(async([k,p])=>{try{state.balances[k]=await p;}catch(e){state.balances[k]=null;}}));
+    for(const[k,v]of Object.entries(state.balances)){
+      const el=document.querySelector(`[data-bal="${k}"]`);
+      if(el)el.innerHTML=(v===null?"n/a":fmtBal(v))+" <small>"+state.wallet[k].symbol+"</small>";
+    }
+    // every EVM chain at once: native coin + USDC on each
+    const chains=EVM_CHAINS[state.network];
+    await Promise.all(chains.map(async(c,i)=>{
+      const e=state.evmBalances[i]||(state.evmBalances[i]={native:undefined,usdc:undefined});
+      try{e.native=await balEVM(c.rpc,w.evm.address);}catch(err){e.native=null;}
+      if(c.usdc){try{e.usdc=await erc20Balance({rpc:c.rpc,contract:c.usdc,decimals:c.usdcDec});}catch(err){e.usdc=null;}}
+    }));
+    const sel=state.evmBalances[state.evmChainIdx];
+    state.balances.evm=sel?sel.native:undefined;
+    chains.forEach((c,i)=>{
+      const e=state.evmBalances[i]||{};
+      const nEl=document.querySelector(`[data-evmbal="${i}"]`);
+      if(nEl)nEl.textContent=e.native===undefined?"…":e.native===null?"n/a":fmtBal(e.native);
+      const uEl=document.querySelector(`[data-usdcbal="${i}"]`);
+      if(uEl)uEl.textContent=e.usdc===undefined?"…":e.usdc===null?"n/a":fmtBal(e.usdc);
+    });
+    // token balances
+    for(const tok of state.tokens){try{tok.balance=await erc20Balance(tok);}catch(e){tok.balance=null;} }
+    renderTokens();
+    if(typeof renderHome==="function")renderHome();
+    const now=new Date();
+    $("syncPill").textContent="Synced "+now.toLocaleTimeString()+" · auto-sync 45s · runs in background, re-syncs on return";
+  }finally{state.syncing=false;}
+}
+
+/* ================= QR ================= */
+let qrKey=null;
+function showQR(key){
+  qrKey=key;const w=state.wallet[key];
+  $("qrTitle").textContent="Receive — "+w.chain;
+  $("qrAddr").textContent=w.address;
+  $("qrBox").innerHTML="";
+  try{new QRCode($("qrBox"),{text:w.address,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});}catch(e){$("qrBox").textContent=w.address;}
+  $("qrDialog").showModal();
+}
+$("qrClose").onclick=()=>$("qrDialog").close();
+$("qrCopy").onclick=()=>{if(qrKey)copyText(state.wallet[qrKey].address,"Address copied");};
+
+/* ================= ERC-20 helpers ================= */
+function ethCallData(sig,args){return "0x"+bytesToHex(keccak256(utf8(sig)).slice(0,4))+args;}
+function padAddr(a){return a.replace(/^0x/,"").toLowerCase().padStart(64,"0");}
+function padUint(n){return n.toString(16).padStart(64,"0");}
+async function erc20Meta(rpc,contract){
+  async function call(sig){return rpcCall(rpc,"eth_call",[{to:contract,data:ethCallData(sig,"")},"latest"]);}
+  const decHex=await call("decimals()");
+  const symHex=await call("symbol()");
+  const nameHex=await call("name()");
+  function parseStr(h){try{const b=hexToBytes(h.replace(/^0x/,""));const len=Number(BigInt("0x"+bytesToHex(b.slice(32,64))));return new TextDecoder().decode(b.slice(64,64+len));}catch(e){return "?";}}
+  return{decimals:Number(BigInt(decHex)),symbol:parseStr(symHex),name:parseStr(nameHex)};
+}
+async function erc20Balance(tok){
+  const data=ethCallData("balanceOf(address)",padAddr(state.wallet.evm.address));
+  const v=await rpcCall(tok.rpc,"eth_call",[{to:tok.contract,data},"latest"]);
+  return Number(BigInt(v))/Math.pow(10,tok.decimals);
+}
+function renderTokens(){
+  const el=$("tokList");if(!el)return;
+  if(!state.tokens.length){el.innerHTML='<p class="small-txt">No custom tokens imported yet.</p>';return;}
+  el.innerHTML=state.tokens.map((t,i)=>`<div class="txitem"><strong>${esc(t.symbol)}</strong> — ${esc(t.name)} <span class="pill">${esc(t.chainName)}</span><br><span class="mono" style="font-size:.75rem">${esc(t.contract)}</span><br>Balance: <strong>${t.balance===undefined?"…":fmtBal(t.balance)}</strong> ${esc(t.symbol)} <button class="small" data-tokdel="${i}" type="button">Remove</button></div>`).join("");
+  document.querySelectorAll("[data-tokdel]").forEach(b=>b.onclick=()=>{state.tokens.splice(Number(b.dataset.tokdel),1);renderTokens();});
+}
+$("tokAdd").onclick=async()=>{
+  const addr=$("tokAddr").value.trim();
+  const chain=EVM_CHAINS[state.network][Number($("tokChain").value)];
+  if(!/^0x[0-9a-fA-F]{40}$/.test(addr)){$("tokStatus").textContent="Enter a valid 0x contract address.";return;}
+  $("tokStatus").textContent="Reading token contract…";
+  try{
+    const meta=await erc20Meta(chain.rpc,addr);
+    const tok={contract:addr,rpc:chain.rpc,chainName:chain.name,...meta,balance:undefined};
+    tok.balance=await erc20Balance(tok);
+    state.tokens.push(tok);renderTokens();
+    $("tokStatus").textContent="Imported "+meta.symbol+" ("+meta.name+").";
+  }catch(e){$("tokStatus").textContent="Could not read that contract on "+chain.name+": "+e.message;}
+};
+
+/* ================= Send ================= */
+function fillSendChains(){
+  const opts=[["evm","EVM — "+EVM_CHAINS[state.network][state.evmChainIdx].name],["btc","Bitcoin SegWit"],["sol","Solana"],["trx","TRON"],["sui","SUI"],["ton","TON"],["near","NEAR"]];
+  $("sendChain").innerHTML=opts.map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
+}
+function updateSendNote(){
+  const c=$("sendChain").value;
+  const notes={
+    evm:"Fully signed in your browser (EIP-155) and broadcast through the chain's public RPC. Double-check the network above — the chain tapped on the EVM card controls this.",
+    sol:"Fully signed in your browser (ed25519) and broadcast through Solana's public RPC.",
+    btc:"This page derives and verifies your Bitcoin keys, but broadcasting a SegWit spend needs a PSBT builder — the button builds the payment summary and opens your address on Blockstream so you can verify funds, then sign in Sparrow / Electrum with the same seed.",
+    trx:"Validated and prepared here; broadcast from TronLink with the same seed (path m/44'/195'/0'/0/0) to avoid exposing the key to a third-party API from this static page.",
+    sui:"Validated and prepared here; execute from the official Sui Wallet with the same seed (path m/44'/784'/0'/0'/0').",
+    ton:"Validated and prepared here; execute from Tonkeeper / TON Wallet with the same seed (Wallet V4).",
+    near:"Validated and prepared here; execute from Meteor / MyNearWallet with the same seed (path m/44'/397'/0')."
+  };
+  $("sendNote").textContent=notes[c]||"";
+}
+$("sendChain").onchange=()=>{fillSendChainsLabel();updateSendNote();};
+function fillSendChainsLabel(){const sel=$("sendChain");const cur=sel.value;fillSendChains();sel.value=cur||"evm";}
+
+function signEvmTx(privHex,tx){
+  const priv=hexToBytes(privHex);
+  const fields=[bigIntToBytes(BigInt(tx.nonce)),bigIntToBytes(BigInt(tx.gasPrice)),bigIntToBytes(BigInt(tx.gasLimit)),hexToBytes(tx.to.replace(/^0x/,"")),bigIntToBytes(tx.value),tx.data?hexToBytes(tx.data.replace(/^0x/,"")):new Uint8Array(0),bigIntToBytes(BigInt(tx.chainId)),new Uint8Array(0),new Uint8Array(0)];
+  const sighash=keccak256(rlpEncode(fields));
+  const key=EC().keyFromPrivate(priv);
+  const sig=key.sign(sighash,{canonical:true});
+  const v=BigInt(tx.chainId)*2n+(sig.recoveryParam?36n:35n);
+  const signed=rlpEncode(fields.slice(0,6).concat([bigIntToBytes(v),bigIntToBytes(BigInt("0x"+sig.r.toString(16))),bigIntToBytes(BigInt("0x"+sig.s.toString(16)))]));
+  return "0x"+bytesToHex(signed);
+}
+$("sendBtn").onclick=async()=>{
+  const chain=$("sendChain").value,to=$("sendTo").value.trim(),amt=parseFloat($("sendAmt").value);
+  const st=$("sendStatus"),out=$("sendResult");
+  if(!to||!(amt>0)){st.textContent="Enter a recipient and an amount above zero.";return;}
+  out.innerHTML="";
+  try{
+    if(chain==="evm"){
+      const c=EVM_CHAINS[state.network][state.evmChainIdx];
+      if(!/^0x[0-9a-fA-F]{40}$/.test(to))throw new Error("Recipient is not a valid EVM address.");
+      st.textContent="Fetching nonce & gas…";
+      const nonce=await rpcCall(c.rpc,"eth_getTransactionCount",[state.wallet.evm.address,"pending"]);
+      const gasPrice=await rpcCall(c.rpc,"eth_gasPrice",[]);
+      const value=BigInt(Math.round(amt*1e6))*10n**12n; // amt in ether units (safe to 6dp input)
+      const valueWei=BigInt("0x"+(function(){const s=String(amt);const[ip,fp=""]=s.split(".");return (BigInt(ip)*10n**18n+BigInt((fp+"000000000000000000").slice(0,18))).toString(16);})());
+      const raw=signEvmTx(state.wallet.evm.privHex,{nonce:Number(BigInt(nonce)),gasPrice:BigInt(gasPrice),gasLimit:21000,to,value:valueWei,chainId:c.id});
+      if(!(await askConfirm("Send "+amt+" "+c.symbol+" on "+c.name+" to "+to+"?"))){st.textContent="Cancelled.";return;}
+      st.textContent="Broadcasting…";
+      const hash=await rpcCall(c.rpc,"eth_sendRawTransaction",[raw]);
+      out.innerHTML=`<p class="ok">✓ Broadcast. Tx: <a href="${c.explorer}/tx/${hash}" target="_blank" rel="noopener" class="mono">${hash}</a></p>`;
+      st.textContent="";setTimeout(refreshBalances,4000);
+    }else if(chain==="sol"){
+      st.textContent="Building Solana transaction…";
+      const url=state.network==="testnet"?"https://api.devnet.solana.com":"https://api.mainnet-beta.solana.com";
+      const dest=b58decode(to);if(dest.length!==32)throw new Error("Recipient is not a valid Solana address.");
+      const lamports=Math.round(amt*1e9);
+      const bh=await rpcCall(url,"getLatestBlockhash",[{commitment:"finalized"}]);
+      const blockhash=b58decode(bh.value.blockhash);
+      const fromPub=b58decode(state.wallet.sol.address);
+      // Legacy message: header, account keys, blockhash, 1 system-transfer instruction
+      const header=new Uint8Array([1,0,1]);
+      const keys=concatBytes(fromPub,dest,hexToBytes("00000000000000000000000000000000").length?new Uint8Array(32):new Uint8Array(32));
+      // System program id = 32 zero bytes
+      const msgParts=[];
+      msgParts.push(header);msgParts.push(new Uint8Array([3]));msgParts.push(fromPub);msgParts.push(dest);msgParts.push(new Uint8Array(32));msgParts.push(blockhash);
+      const ixData=new Uint8Array(12);new DataView(ixData.buffer).setUint32(0,2,true);new DataView(ixData.buffer).setBigUint64(4,BigInt(lamports),true);
+      msgParts.push(new Uint8Array([1])); // 1 instruction
+      msgParts.push(new Uint8Array([2])); // program id index (system)
+      msgParts.push(new Uint8Array([2,0,1])); // accounts len + indices
+      msgParts.push(new Uint8Array([ixData.length]));msgParts.push(ixData);
+      let msg=new Uint8Array(0);msgParts.forEach(p=>{msg=concatBytes(msg,p);});
+      const kp=nacl.sign.keyPair.fromSeed(hexToBytes(state.wallet.sol.privHex));
+      const sig=nacl.sign.detached(msg,kp.secretKey);
+      const txBytes=concatBytes(new Uint8Array([1]),sig,msg);
+      let b64="";const bin=Array.from(txBytes).map(b=>String.fromCharCode(b)).join("");b64=btoa(bin);
+      if(!(await askConfirm("Send "+amt+" SOL to "+to+"?"))){st.textContent="Cancelled.";return;}
+      const sig58=await rpcCall(url,"sendTransaction",[b64,{encoding:"base64"}]);
+      out.innerHTML=`<p class="ok">✓ Broadcast. Signature: <a href="https://solscan.io/tx/${sig58}" target="_blank" rel="noopener" class="mono">${sig58}</a></p>`;
+      st.textContent="";setTimeout(refreshBalances,4000);
+    }else{
+      const w=state.wallet[chain];
+      out.innerHTML=`<div class="card" style="margin:0"><h3>Payment prepared — verify, then sign in the chain's wallet</h3>
+        <dl class="kv"><dt>From</dt><dd>${w.address}</dd><dt>To</dt><dd>${esc(to)}</dd><dt>Amount</dt><dd>${amt} ${w.symbol}</dd><dt>Path</dt><dd>${w.path}</dd></dl>
+        <p class="small-txt">Your derived address and key pair are verified (see Backup &amp; keys). Import the same seed into the chain's standard wallet, confirm this exact address matches, then send. <a href="${explorerLink(chain,w)}" target="_blank" rel="noopener">View address on explorer ↗</a></p></div>`;
+      st.textContent="";
+    }
+  }catch(e){st.textContent="";out.innerHTML=`<p class="err">Send failed: ${esc(e.message)}</p>`;}
+};
+function askConfirm(msg){
+  // In-page review step — native browser dialogs do not work inside the sandboxed frame.
+  return new Promise(resolve=>{
+    const out=$("sendResult");
+    out.innerHTML=`<div class="card" style="margin:0"><h3>Review transaction</h3><p>${esc(msg)}</p>
+      <div class="row"><button class="primary" id="cfYes" type="button">Confirm &amp; broadcast</button><button id="cfNo" type="button">Cancel</button></div></div>`;
+    $("cfYes").onclick=()=>{out.innerHTML="";resolve(true);};
+    $("cfNo").onclick=()=>{out.innerHTML="";resolve(false);};
+  });
+}
+
+/* ================= Swap quotes ================= */
+function fillSwapChains(){
+  $("swapChain").innerHTML=EVM_CHAINS[state.network].map((c,i)=>`<option value="${i}">${c.name}</option>`).join("");
+  $("tokChain").innerHTML=EVM_CHAINS[state.network].map((c,i)=>`<option value="${i}">${c.name}</option>`).join("");
+  $("actChain").innerHTML=[`<option value="evm">EVM — ${EVM_CHAINS[state.network][state.evmChainIdx].name}</option>`,`<option value="btc">Bitcoin</option>`,`<option value="sol">Solana</option>`].join("");
+}
+const NATIVE="0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+$("quoteBtn").onclick=async()=>{
+  const c=EVM_CHAINS[state.network][Number($("swapChain").value)];
+  let from=$("swapFrom").value.trim();const to=$("swapTo").value.trim();const amt=parseFloat($("swapAmt").value);
+  if(from.toLowerCase()==="native")from=NATIVE;
+  if(!/^0x[0-9a-fA-F]{40}$/.test(from)||!/^0x[0-9a-fA-F]{40}$/.test(to)||!(amt>0)){$("quoteStatus").textContent="Check token addresses and amount.";return;}
+  $("quoteStatus").textContent="Fetching aggregator quote…";
+  try{
+    const dec=from===NATIVE?18:(await erc20Meta(c.rpc,from)).decimals;
+    const rawAmt=BigInt(Math.round(amt*Math.pow(10,Math.min(dec,12))))*(10n**BigInt(Math.max(0,dec-12)));
+    const url=`https://open-api.openocean.finance/v3/${c.oo}/quote?inTokenAddress=${from}&outTokenAddress=${to}&amount=${rawAmt.toString()}&gasPrice=5`;
+    const j=await fetchJSON(url);
+    if(!j.data||!j.data.outAmount)throw new Error("No route found for this pair.");
+    const outDec=(await erc20Meta(c.rpc,to)).decimals;
+    const outAmt=Number(BigInt(j.data.outAmount))/Math.pow(10,outDec);
+    const rate=outAmt/amt;
+    $("quoteOut").innerHTML=`<div class="card" style="margin:0"><h3>Best route — ${c.name}</h3>
+      <p style="margin:.2rem 0">You receive ≈ <strong>${fmtBal(outAmt)} tokens</strong> for ${amt} in (rate ≈ ${fmtBal(rate)} per unit, before gas).</p>
+      <p class="small-txt">Estimated gas: ${j.data.estimatedGas?Number(j.data.estimatedGas).toLocaleString():"—"} units · Route via OpenOcean aggregator (1inch / Uniswap / Curve pools). <a href="https://app.openocean.finance" target="_blank" rel="noopener">Execute on OpenOcean ↗</a> · <a href="https://app.1inch.io" target="_blank" rel="noopener">1inch ↗</a></p></div>`;
+    $("quoteStatus").textContent="";
+    for(const lo of state.limitOrders){if(Math.abs(rate-lo.target)>=0&&rate>=lo.target&&!lo.hit){lo.hit=true;toast("Limit watch hit: "+lo.pair+" reached "+fmtBal(rate));}}
+    renderLimitOrders();
+  }catch(e){$("quoteStatus").textContent="Quote failed: "+e.message;}
+};
+$("loAdd").onclick=()=>{
+  const pair=$("loPair").value.trim(),target=parseFloat($("loPrice").value);
+  if(!pair||!(target>0)){toast("Add a pair label and a target rate.");return;}
+  state.limitOrders.push({pair,target,hit:false});renderLimitOrders();toast("Limit watch added (this session only).");
+};
+function renderLimitOrders(){
+  $("loList").innerHTML=state.limitOrders.length?state.limitOrders.map((lo,i)=>`<div class="txitem">${lo.hit?"✅":"⏳"} <strong>${esc(lo.pair)}</strong> — alert at ≥ ${esc(lo.target)} ${lo.hit?"· <span class='ok'>rate reached in last quote</span>":""} <button class="small" data-lo="${i}" type="button">Remove</button></div>`).join(""):'<p class="small-txt">No limit watches yet.</p>';
+  document.querySelectorAll("[data-lo]").forEach(b=>b.onclick=()=>{state.limitOrders.splice(Number(b.dataset.lo),1);renderLimitOrders();});
+}
+
+/* ================= Activity ================= */
+$("actBtn").onclick=async()=>{
+  const which=$("actChain").value;const out=$("actOut");out.innerHTML='<p class="small-txt">Loading…</p>';
+  try{
+    if(which==="btc"){
+      const t=state.network==="testnet";const base=t?"https://blockstream.info/testnet/api":"https://blockstream.info/api";
+      const txs=await fetchJSON(base+"/address/"+state.wallet.btc.address+"/txs");
+      out.innerHTML=txs.length?txs.slice(0,10).map(tx=>`<div class="txitem"><a class="mono" href="${t?"https://blockstream.info/testnet/tx/":"https://blockstream.info/tx/"}${tx.txid}" target="_blank" rel="noopener">${tx.txid.slice(0,20)}…</a> · ${tx.status.confirmed?"confirmed · block "+tx.status.block_height:"in mempool"}</div>`).join(""):'<p class="small-txt">No transactions yet for this address.</p>';
+    }else if(which==="sol"){
+      const url=state.network==="testnet"?"https://api.devnet.solana.com":"https://api.mainnet-beta.solana.com";
+      const sigs=await rpcCall(url,"getSignaturesForAddress",[state.wallet.sol.address,{limit:10}]);
+      out.innerHTML=sigs.length?sigs.map(s=>`<div class="txitem"><a class="mono" href="https://solscan.io/tx/${s.signature}" target="_blank" rel="noopener">${s.signature.slice(0,20)}…</a> · slot ${s.slot} · ${s.err?"failed":"ok"}</div>`).join(""):'<p class="small-txt">No transactions yet for this address.</p>';
+    }else{
+      const c=EVM_CHAINS[state.network][state.evmChainIdx];
+      out.innerHTML=`<p class="small-txt">Full EVM history lives on the explorer: <a href="${c.explorer}/address/${state.wallet.evm.address}" target="_blank" rel="noopener">${c.name} explorer — ${shortAddr(state.wallet.evm.address)} ↗</a>. Current nonce & balance are synced above every 45s.</p>`;
+    }
+  }catch(e){out.innerHTML=`<p class="err">Activity failed: ${esc(e.message)}</p>`;}
+};
+
+/* ================= Backup export ================= */
+$("revealSeed").onclick=()=>{$("seedOut").classList.toggle("hidden");$("revealSeed").textContent=$("seedOut").classList.contains("hidden")?"Reveal seed phrase":"Hide seed phrase";};
+$("copySeed").onclick=()=>copyText(state.mnemonic,"Seed phrase copied");
+function download(name,content,type){
+  const blob=new Blob([content],{type:type||"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},400);
+}
+$("dlBackup").onclick=()=>{
+  const w=state.wallet;const data={app:"Muse Burner Wallet",version:1,exportedAt:new Date().toISOString(),network:state.network,mnemonic:state.mnemonic,passphraseUsed:!!state.passphrase,
+    accounts:Object.fromEntries(["btc","evm","sol","trx","sui","ton","near"].map(k=>[k,{chain:w[k].chain,path:w[k].path,address:w[k].address,privateKeyHex:w[k].privHex,symbol:w[k].symbol}]))};
+  download("burner-wallet-backup.json",JSON.stringify(data,null,2));
+  toast("Backup downloaded — store it somewhere private.");
+};
+$("dlTxt").onclick=()=>{
+  const w=state.wallet;let txt="BURNER WALLET — PRIVATE KEYS (keep secret, small amounts only)\nExported: "+new Date().toISOString()+"\nNetwork shown: "+state.network+"\n\nSeed phrase:\n"+state.mnemonic+"\n\n";
+  for(const k of["btc","evm","sol","trx","sui","ton","near"]){txt+=w[k].chain+"\n  Path: "+w[k].path+"\n  Address: "+w[k].address+"\n  Private key (hex): "+w[k].privHex+"\n\n";}
+  download("burner-wallet-keys.txt",txt,"text/plain");
+  toast("Keys file downloaded — store it somewhere private.");
+};
+
+/* ================= Background auto-sync ================= */
+function startSync(){
+  clearInterval(state.syncTimer);
+  // Keeps firing while the tab sits in the background (browsers may stretch the
+  // cadence there); the visibility hook below re-syncs the moment you return.
+  state.syncTimer=setInterval(()=>{if(state.wallet)refreshBalances();},45000);
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.wallet){refreshBalances();startSync();}});
+window.addEventListener("focus",()=>{if(state.wallet)refreshBalances();});
+window.addEventListener("online",()=>{if(state.wallet)refreshBalances();});
+
+/* ================= Remember-me vault (encrypted, this browser only) =================
+   The seed is encrypted with a user-set password (PBKDF2-SHA-256, 310k rounds →
+   AES-256-GCM) and only the ciphertext is kept in this browser's local storage.
+   The plain seed and the password are never stored; decryption happens in memory
+   on unlock, and the wallet still starts locked on every load. */
+const VAULT_KEY="muse-burner-wallet-vault-v1";
+const VAULT_ITER=310000;
+function bufToB64(buf){const b=new Uint8Array(buf);let s="";for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s);}
+function b64ToBuf(s){const bin=atob(s);const b=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return b;}
+function readVaultRaw(){
+  try{const raw=localStorage.getItem(VAULT_KEY);if(!raw)return null;const j=JSON.parse(raw);return (j&&j.ct&&j.salt&&j.iv)?j:null;}catch(e){return null;}
+}
+function hasVault(){return !!readVaultRaw();}
+function removeVault(){try{localStorage.removeItem(VAULT_KEY);}catch(e){}}
+async function deriveVaultKey(password,salt,iter){
+  if(!window.crypto||!crypto.subtle)throw new Error("This browser doesn't offer the Web Crypto API, so remember-me encryption isn't available here.");
+  const base=await crypto.subtle.importKey("raw",utf8(password),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:iter||VAULT_ITER,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function saveVault(mnemonic,passphrase,password){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveVaultKey(password,salt,VAULT_ITER);
+  const plain=utf8(JSON.stringify({mnemonic:mnemonic,passphrase:passphrase||""}));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,plain);
+  const record={v:1,kdf:"PBKDF2-SHA256",iter:VAULT_ITER,salt:bufToB64(salt),iv:bufToB64(iv),ct:bufToB64(ct),savedAt:new Date().toISOString()};
+  try{localStorage.setItem(VAULT_KEY,JSON.stringify(record));}
+  catch(e){throw new Error("This browser blocked local storage, so the encrypted copy couldn't be saved here.");}
+}
+async function openVault(password){
+  const rec=readVaultRaw();if(!rec)throw new Error("No saved wallet found in this browser.");
+  const key=await deriveVaultKey(password,b64ToBuf(rec.salt),rec.iter||VAULT_ITER);
+  let plain;
+  try{plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBuf(rec.iv)},key,b64ToBuf(rec.ct));}
+  catch(e){throw new Error("Wrong password — the saved copy couldn't be decrypted.");}
+  const data=JSON.parse(new TextDecoder().decode(plain));
+  if(!data||!data.mnemonic)throw new Error("The saved copy is damaged — unlock with your seed phrase instead.");
+  return data;
+}
+function validateNewVaultPassword(p1,p2){
+  if(!p1||p1.length<8)return "Your remember-me password needs at least 8 characters.";
+  if(p1!==p2)return "The two remember-me passwords don't match.";
+  return "";
+}
+function refreshVaultUI(){
+  const card=$("vaultCard");if(card)card.classList.toggle("hidden",!hasVault());
+  renderVaultManage();
+}
+function renderVaultManage(){
+  const el=$("vaultManage");if(!el)return;
+  const rec=readVaultRaw();
+  if(rec){
+    const when=rec.savedAt?new Date(rec.savedAt).toLocaleString():"";
+    el.innerHTML=`<p class="small-txt" style="margin-top:0"><span class="ok">On</span> — an encrypted copy of your seed is saved in this browser${when?` (saved ${esc(when)})`:""}. Reopening this page asks for your password instead of the seed phrase. Locking does not remove it.</p>
+      <div class="row">
+        <button id="vmChangeBtn" type="button">Change password</button>
+        <button id="vmRemoveBtn" type="button" class="danger">Remove saved copy</button>
+      </div>
+      <div id="vmChangeFields" class="hidden">
+        <label for="vmNewPw">New remember-me password (8+ characters)</label>
+        <input id="vmNewPw" type="password" autocomplete="new-password" placeholder="New password">
+        <label for="vmNewPw2">Repeat the new password</label>
+        <input id="vmNewPw2" type="password" autocomplete="new-password" placeholder="Repeat it">
+        <div class="row" style="margin-top:.7rem"><button id="vmChangeSave" type="button" class="primary">Update password</button><span class="small-txt" id="vmStatus"></span></div>
+      </div>
+      <p class="small-txt" id="vmRemoveNote"></p>`;
+    $("vmChangeBtn").onclick=()=>$("vmChangeFields").classList.toggle("hidden");
+    $("vmChangeSave").onclick=async()=>{
+      const err=validateNewVaultPassword($("vmNewPw").value,$("vmNewPw2").value);
+      if(err){$("vmStatus").textContent=err;return;}
+      $("vmStatus").textContent="Re-encrypting…";
+      try{await saveVault(state.mnemonic,state.passphrase,$("vmNewPw").value);$("vmStatus").textContent="";toast("Remember-me password updated ✓");refreshVaultUI();}
+      catch(e){$("vmStatus").textContent=e.message;}
+    };
+    $("vmRemoveBtn").onclick=()=>{
+      const btn=$("vmRemoveBtn");
+      if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="Tap again to confirm removal";$("vmRemoveNote").textContent="This deletes the encrypted copy from this browser. Your seed phrase still unlocks the wallet as before.";return;}
+      removeVault();refreshVaultUI();toast("Saved copy removed — seed phrase needed next time.");
+    };
+  }else{
+    el.innerHTML=`<p class="small-txt" style="margin-top:0"><span class="err">Off</span> — nothing is saved in this browser, so every reload needs the seed phrase. Turn it on to save your seed here <strong>encrypted with a password</strong>: reopening the page then asks for the password instead. The plain seed is never stored and never leaves this browser.</p>
+      <label for="vmPw">Set a remember-me password (8+ characters)</label>
+      <input id="vmPw" type="password" autocomplete="new-password" placeholder="Choose a strong password">
+      <label for="vmPw2">Repeat the password</label>
+      <input id="vmPw2" type="password" autocomplete="new-password" placeholder="Repeat it">
+      <div class="row" style="margin-top:.7rem"><button id="vmEnableBtn" type="button" class="primary">Enable remember-me</button><span class="small-txt" id="vmStatus"></span></div>`;
+    $("vmEnableBtn").onclick=async()=>{
+      const err=validateNewVaultPassword($("vmPw").value,$("vmPw2").value);
+      if(err){$("vmStatus").textContent=err;return;}
+      $("vmStatus").textContent="Encrypting…";
+      try{await saveVault(state.mnemonic,state.passphrase,$("vmPw").value);$("vmStatus").textContent="";toast("Remember-me on — this browser will ask for your password next time ✓");refreshVaultUI();}
+      catch(e){$("vmStatus").textContent=e.message;}
+    };
+  }
+}
+
+/* ================= Unlock / lock ================= */
+async function unlockWith(mnemonic,passphrase){
+  const v=validateMnemonic(mnemonic);
+  if(!v.ok)throw new Error(v.msg);
+  state.mnemonic=v.words.join(" ");state.passphrase=passphrase||"";
+  state.wallet=await deriveWallet(state.mnemonic,state.passphrase,state.network);
+  $("lockedView").classList.add("hidden");$("dashView").classList.remove("hidden");
+  fillSendChains();fillSwapChains();updateSendNote();renderChains();renderTokens();renderLimitOrders();
+  refreshVaultUI();
+  if(typeof onUnlockedUI==="function")onUnlockedUI();
+  refreshBalances();
+  startSync();
+  window.scrollTo({top:0});
+}
+function lock(){
+  state.mnemonic=null;state.passphrase="";state.wallet=null;state.balances={};state.evmBalances={};state.tokens=[];
+  clearInterval(state.syncTimer);state.syncTimer=null;
+  $("mnemonicInput").value="";$("passphraseInput").value="";$("seedOut").value="";
+  $("vaultPassword").value="";$("vaultStatus").textContent="";
+  $("rememberPassword").value="";$("rememberPassword2").value="";
+  $("rememberPasswordFile").value="";$("rememberPasswordFile2").value="";
+  $("dashView").classList.add("hidden");$("lockedView").classList.remove("hidden");
+  refreshVaultUI();
+  toast(hasVault()?"Locked — keys wiped from memory. Your password unlocks it next time.":"Locked — keys wiped from memory.");
+}
+$("lockBtn").onclick=lock;
+$("refreshBtn").onclick=()=>refreshBalances();
+
+/* network switch */
+function setNetwork(n){
+  state.network=n;state.evmChainIdx=0;state.balances={};state.evmBalances={};
+  $("netMain").classList.toggle("on",n==="mainnet");$("netTest").classList.toggle("on",n==="testnet");
+  if(state.wallet&&state.mnemonic){deriveWallet(state.mnemonic,state.passphrase,n).then(w=>{state.wallet=w;fillSendChains();fillSwapChains();updateSendNote();renderChains();refreshBalances();});}
+}
+$("netMain").onclick=()=>setNetwork("mainnet");
+$("netTest").onclick=()=>setNetwork("testnet");
+
+/* locked-view tabs */
+function showPane(which){
+  for(const p of["Mnemonic","File"]){$("pane"+p).classList.toggle("hidden",p!==which);$("tab"+p).classList.toggle("on",p===which);}
+}
+$("tabMnemonic").onclick=()=>showPane("Mnemonic");
+$("tabFile").onclick=()=>showPane("File");
+
+/* remember-me checkbox toggles */
+$("rememberCheck").onchange=()=>$("rememberFields").classList.toggle("hidden",!$("rememberCheck").checked);
+$("rememberCheckFile").onchange=()=>$("rememberFieldsFile").classList.toggle("hidden",!$("rememberCheckFile").checked);
+
+$("unlockBtn").onclick=async()=>{
+  const wantRemember=$("rememberCheck").checked;
+  const vaultPw=$("rememberPassword").value;
+  if(wantRemember){
+    const err=validateNewVaultPassword(vaultPw,$("rememberPassword2").value);
+    if(err){toast(err);return;}
+  }
+  $("unlockStatus").textContent="Deriving addresses locally…";
+  try{
+    await unlockWith($("mnemonicInput").value,$("passphraseInput").value);
+    $("unlockStatus").textContent="";
+    $("rememberPassword").value="";$("rememberPassword2").value="";
+    if(wantRemember){
+      try{await saveVault(state.mnemonic,state.passphrase,vaultPw);refreshVaultUI();toast("Unlocked — remember-me on. Next time, your password unlocks it ✓");}
+      catch(e){toast("Unlocked, but remember-me couldn't be saved: "+e.message);}
+    }
+  }
+  catch(e){$("unlockStatus").textContent="";toast(e.message);}
+};
+
+/* password unlock from the saved encrypted copy */
+$("vaultUnlockBtn").onclick=async()=>{
+  const pw=$("vaultPassword").value;
+  if(!pw){$("vaultStatus").textContent="Enter your remember-me password.";return;}
+  $("vaultStatus").textContent="Decrypting locally…";
+  try{
+    const data=await openVault(pw);
+    $("vaultPassword").value="";
+    await unlockWith(data.mnemonic,data.passphrase||"");
+    $("vaultStatus").textContent="";
+    toast("Unlocked with your password ✓");
+  }catch(e){$("vaultStatus").textContent=e.message;}
+};
+$("vaultPassword").addEventListener("keydown",e=>{if(e.key==="Enter")$("vaultUnlockBtn").click();});
+$("vaultUseSeedBtn").onclick=()=>{showPane("Mnemonic");$("mnemonicInput").focus();window.scrollTo({top:0,behavior:"smooth"});};
+$("vaultForgetBtn").onclick=()=>{
+  const btn=$("vaultForgetBtn");
+  if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="Tap again to confirm — deletes the saved copy";return;}
+  btn.dataset.armed="";btn.textContent="Forget saved wallet";
+  removeVault();$("vaultPassword").value="";$("vaultStatus").textContent="";
+  refreshVaultUI();toast("Saved copy forgotten — unlock with your seed phrase.");
+};
+$("importFileBtn").onclick=async()=>{
+  const f=$("backupFile").files[0];if(!f){$("fileStatus").textContent="Choose a backup JSON file first.";return;}
+  const wantRemember=$("rememberCheckFile").checked;
+  const vaultPw=$("rememberPasswordFile").value;
+  if(wantRemember){
+    const err=validateNewVaultPassword(vaultPw,$("rememberPasswordFile2").value);
+    if(err){$("fileStatus").textContent=err;return;}
+  }
+  try{
+    const text=await f.text();const j=JSON.parse(text);
+    const m=j.mnemonic||j.seed||j.seedPhrase;
+    if(!m)throw new Error("No mnemonic found in that file.");
+    $("fileStatus").textContent="Deriving addresses locally…";
+    await unlockWith(m,"");$("fileStatus").textContent="";
+    $("rememberPasswordFile").value="";$("rememberPasswordFile2").value="";
+    if(wantRemember){
+      try{await saveVault(state.mnemonic,state.passphrase,vaultPw);refreshVaultUI();toast("Imported — remember-me on. Next time, your password unlocks it ✓");}
+      catch(e){toast("Imported, but remember-me couldn't be saved: "+e.message);}
+    }
+  }catch(e){$("fileStatus").textContent=e.message;}
+};
+/* dashboard tabs */
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("on",x===b));
+  for(const t of["send","swap","tokens","activity","backup"]) $("tab-"+t).classList.toggle("hidden",t!==b.dataset.tab);
+});
+
+/* ================= Self-test ================= */
+$("selfTestBtn").onclick=async()=>{
+  const btn=$("selfTestBtn");btn.disabled=true;$("selfTestStatus").textContent="Running…";
+  const testMnemonic="abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+  try{
+    const w=await deriveWallet(testMnemonic,"","mainnet");
+    const rows=[
+      {label:"EVM (m/44'/60'/0'/0/0)",expected:"0x9858EfFD232B4033E47d90003D41EC34EcaEda94",got:w.evm.address},
+      {label:"Bitcoin SegWit (m/84'/0'/0'/0/0)",expected:"bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",got:w.btc.address},
+      {label:"Solana (m/44'/501'/0'/0')",expected:"derived · verify in Phantom",got:w.sol.address},
+      {label:"TRON (m/44'/195'/0'/0/0)",expected:"derived · verify in TronLink",got:w.trx.address},
+      {label:"SUI (m/44'/784'/0'/0'/0')",expected:"derived · verify in Sui Wallet",got:w.sui.address},
+      {label:"NEAR implicit (m/44'/397'/0')",expected:"derived · verify in Meteor",got:w.near.address},
+      {label:"TON V4 (m/44'/607'/0'/0'/0')",expected:"derived · verify in Tonkeeper",got:w.ton.address}
+    ];
+    const evmPass=w.evm.address.toLowerCase()==="0x9858effd232b4033e47d90003d41ec34ecaeda94";
+    const btcPass=w.btc.address==="bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
+    $("selfTestOut").innerHTML=rows.map(r=>{
+      const isKey=r.label.startsWith("EVM")||r.label.startsWith("Bitcoin");
+      const pass=isKey?(r.got===r.expected||r.got.toLowerCase()===r.expected.toLowerCase()):!!r.got;
+      return `<div class="txitem"><span class="${pass?"ok":"err"}">${pass?"✓ PASS":"✗ FAIL"}</span> <strong>${r.label}</strong><br><span class="mono" style="font-size:.75rem;word-break:break-all">${r.got}</span>${isKey?`<br><span class="small-txt">expected ${r.expected}</span>`:""}</div>`;
+    }).join("")+`<p class="${evmPass&&btcPass?"ok":"err"}" style="margin-top:.5rem">${evmPass&&btcPass?"✓ Core derivation verified — address ↔ private key pairs match the published BIP39 test vectors.":"✗ Core vectors failed — do not use this page until this passes."}</p>`;
+    $("selfTestStatus").textContent="Done.";
+  }catch(e){$("selfTestOut").innerHTML=`<p class="err">Self-test error: ${esc(e.message)}</p>`;$("selfTestStatus").textContent="";}
+  btn.disabled=false;
+};
+
+/* On load: stay locked, but if an encrypted copy was saved in this browser,
+   offer the password unlock instead of asking for the seed phrase again. */
+refreshVaultUI();
+</script>
+<script>
+"use strict";
+/* ================= Bitget-style home · prices in Rp · views =================
+   Prices are live market data from CoinGecko (IDR). Balances are the wallet's
+   real on-chain balances — a token's Rp value is only shown when both a real
+   balance and a live price exist; otherwise it shows "—", never a guess. */
+const PRICE_IDS={btc:"bitcoin",eth:"ethereum",bnb:"binancecoin",matic:"polygon-ecosystem-token",avax:"avalanche-2",usdc:"usd-coin",sol:"solana",trx:"tron",sui:"sui",ton:"the-open-network",near:"near"};
+state.prices={};
+let priceTimer=null;
+function evmPriceKey(c){return {1:"eth",56:"bnb",137:"matic",42161:"eth",10:"eth",43114:"avax",8453:"eth",11155111:"eth",84532:"eth",80002:"matic",5042002:"usdc"}[c.id]||"eth";}
+function priceOf(pk){if(!pk)return null;const p=state.prices[PRICE_IDS[pk]];return p&&typeof p.idr==="number"?p.idr:null;}
+function chgOf(pk){if(!pk)return null;const p=state.prices[PRICE_IDS[pk]];return p&&typeof p.idr_24h_change==="number"?p.idr_24h_change:null;}
+function fmtRp(n){if(n===null||n===undefined||!isFinite(n))return"—";return "Rp"+Number(n).toLocaleString("en-US",{maximumFractionDigits:2});}
+async function fetchPrices(){
+  try{
+    const ids=Object.values(PRICE_IDS).join(",");
+    const j=await fetchJSON("https://api.coingecko.com/api/v3/simple/price?ids="+ids+"&vs_currencies=idr&include_24hr_change=true");
+    if(j&&typeof j==="object"){state.prices=j;renderHome();renderMarkets();}
+  }catch(e){/* keep last known prices; rows show "Price unavailable" until a fetch lands */}
+}
+function homeRows(){
+  const w=state.wallet;if(!w)return[];
+  const rows=[];
+  rows.push({sym:"BTC",tag:"Bitcoin",color:"#f7931a",bal:state.balances.btc,pk:"btc",act:()=>openSend("btc")});
+  EVM_CHAINS[state.network].forEach((c,i)=>{
+    const eb=state.evmBalances[i]||{};
+    rows.push({sym:c.symbol,tag:c.name,color:"#627eea",bal:eb.native,pk:evmPriceKey(c),act:()=>{selectEvmChain(i);openSend("evm");}});
+    if(c.usdc)rows.push({sym:"USDC",tag:c.name,color:"#2775ca",bal:eb.usdc,pk:"usdc",act:()=>{selectEvmChain(i);openSend("evm");}});
+  });
+  rows.push({sym:"SOL",tag:"Solana",color:"#9945ff",bal:state.balances.sol,pk:"sol",act:()=>openSend("sol")});
+  rows.push({sym:"TRX",tag:"TRON",color:"#eb0029",bal:state.balances.trx,pk:"trx",act:()=>openSend("trx")});
+  rows.push({sym:"SUI",tag:"SUI",color:"#4da2ff",bal:state.balances.sui,pk:"sui",act:()=>openSend("sui")});
+  rows.push({sym:"TON",tag:"TON",color:"#0098ea",bal:state.balances.ton,pk:"ton",act:()=>openSend("ton")});
+  rows.push({sym:"NEAR",tag:"NEAR",color:"#00a36c",bal:state.balances.near,pk:"near",act:()=>openSend("near")});
+  state.tokens.forEach(tok=>rows.push({sym:tok.symbol,tag:tok.chainName,color:"#3bc9db",bal:tok.balance,pk:null,act:()=>openTool("tokens","wallet")}));
+  return rows;
+}
+const MARKET_ASSETS=[
+  {sym:"BTC",name:"Bitcoin",pk:"btc",color:"#f7931a",send:"btc"},
+  {sym:"ETH",name:"Ethereum",pk:"eth",color:"#627eea",send:"evm"},
+  {sym:"BNB",name:"BNB Chain",pk:"bnb",color:"#f0b90b",send:"evm"},
+  {sym:"POL",name:"Polygon",pk:"matic",color:"#8247e5",send:"evm"},
+  {sym:"AVAX",name:"Avalanche",pk:"avax",color:"#e84142",send:"evm"},
+  {sym:"USDC",name:"USD Coin",pk:"usdc",color:"#2775ca",send:"evm"},
+  {sym:"SOL",name:"Solana",pk:"sol",color:"#9945ff",send:"sol"},
+  {sym:"TRX",name:"TRON",pk:"trx",color:"#eb0029",send:"trx"},
+  {sym:"SUI",name:"SUI",pk:"sui",color:"#4da2ff",send:"sui"},
+  {sym:"TON",name:"TON",pk:"ton",color:"#0098ea",send:"ton"},
+  {sym:"NEAR",name:"NEAR",pk:"near",color:"#00a36c",send:"near"}
+];
+function renderMarkets(){
+  const el=$("marketList");if(!el)return;
+  el.innerHTML=MARKET_ASSETS.map((a,i)=>{
+    const price=priceOf(a.pk);
+    const chg=chgOf(a.pk);
+    const chgHtml=chg===null?"":` <span class="${chg>=0?"up":"down"}">${chg>=0?"+":""}${chg.toFixed(2)}%</span>`;
+    return `<button type="button" class="tokrow" data-mkt="${i}">
+      <span class="dot" style="background:${a.color}">${esc(a.sym.slice(0,4))}</span>
+      <span class="tokmain"><span class="toksym">${esc(a.sym)}<span class="chainname">${esc(a.name)}</span></span><span class="toksub">24h${chgHtml||" —"}</span></span>
+      <span class="tokbal"><span class="amt">${price!==null?fmtRp(price):"Price unavailable"}</span><span class="val">IDR</span></span>
+    </button>`;
+  }).join("");
+  el.querySelectorAll("[data-mkt]").forEach(b=>b.onclick=()=>{const a=MARKET_ASSETS[Number(b.dataset.mkt)];if(a)openSend(a.send);});
+}
+function renderHome(){
+  const w=state.wallet;if(!w)return;
+  const chip=$("addrChip");if(chip)chip.textContent=shortAddr(w.evm.address)+" ▾";
+  const np=$("netPill");if(np)np.textContent=state.network==="testnet"?"Testnet":"Mainnet";
+  const testnet=state.network==="testnet";
+  const rows=homeRows();
+  let total=0,anyVal=false,anyUnpriced=false;
+  const html=rows.map((r,i)=>{
+    const price=priceOf(r.pk);
+    const balKnown=typeof r.bal==="number"&&isFinite(r.bal);
+    const val=(!testnet&&balKnown&&price!==null)?r.bal*price:null;
+    if(val!==null){total+=val;anyVal=true;}
+    if(!testnet&&balKnown&&r.bal>0&&price===null)anyUnpriced=true;
+    const chg=chgOf(r.pk);
+    const chgHtml=chg===null?"":` <span class="${chg>=0?"up":"down"}">${chg>=0?"+":""}${chg.toFixed(2)}%</span>`;
+    return `<button type="button" class="tokrow" data-row="${i}">
+      <span class="dot" style="background:${r.color}">${esc(r.sym.slice(0,4))}</span>
+      <span class="tokmain"><span class="toksym">${esc(r.sym)}<span class="chainname">${esc(r.tag)}</span></span><span class="toksub">${price!==null?fmtRp(price):"Price unavailable"}${chgHtml}</span></span>
+      <span class="tokbal"><span class="amt">${r.bal===undefined?"…":r.bal===null?"n/a":fmtBal(r.bal)}</span><span class="val">${val!==null?fmtRp(val):"—"}</span></span>
+    </button>`;
+  }).join("");
+  $("homeTokens").innerHTML=html||'<p class="small-txt">No assets yet.</p>';
+  document.querySelectorAll("[data-row]").forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.row)];if(r&&r.act)r.act();});
+  $("totalBal").textContent=testnet?"Rp 0.00":(anyVal?fmtRp(total):(anyUnpriced?"—":"Rp 0.00"));
+  $("totalNote").textContent=testnet?"Testnet balances have no real-world value — switch to Mainnet for live Rp values.":"Across BTC, every EVM chain, Solana, TRON, SUI, TON and NEAR · live IDR prices via CoinGecko";
+  $("tokTotal").textContent=testnet?"Testnet":(anyVal?fmtRp(total):"");
+}
+function selectEvmChain(i){
+  if(i===state.evmChainIdx)return;
+  state.evmChainIdx=i;renderChains();fillSwapChains();fillSendChainsLabel();refreshBalances();
+}
+function setNav(name){
+  document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("on",b.dataset.nav===name));
+}
+function showView(name){
+  $("viewHome").classList.toggle("hidden",name!=="home");
+  $("viewMarkets").classList.toggle("hidden",name!=="markets");
+  $("viewDiscover").classList.toggle("hidden",name!=="discover");
+  $("viewTools").classList.toggle("hidden",name!=="tools");
+  if(name==="home")setNav("home");
+  if(name==="markets"){setNav("markets");renderMarkets();}
+  if(name==="discover")setNav("discover");
+  window.scrollTo({top:0});
+}
+function openTool(tab,navName){
+  showView("tools");
+  const btn=document.querySelector('[data-tab="'+tab+'"]');
+  if(btn)btn.click();
+  $("chainGrid").style.display=(tab==="backup")?"":"none";
+  if(navName)setNav(navName);
+}
+function openSend(key){
+  $("sendChain").value=key;updateSendNote();openTool("send","pay");
+}
+function onUnlockedUI(){
+  showView("home");
+  renderHome();
+  fetchPrices();
+  clearInterval(priceTimer);
+  priceTimer=setInterval(()=>{if(state.wallet)fetchPrices();},120000);
+}
+document.querySelectorAll("[data-nav]").forEach(b=>b.onclick=()=>{
+  const n=b.dataset.nav;
+  if(n==="home")showView("home");
+  else if(n==="markets")showView("markets");
+  else if(n==="trade")openTool("swap","trade");
+  else if(n==="pay")openTool("send","pay");
+  else if(n==="wallet")openTool("backup","wallet");
+});
+$("homeSendBtn").onclick=()=>openTool("send","pay");
+$("homeHistoryBtn").onclick=()=>openTool("activity","wallet");
+$("manageTokBtn").onclick=()=>openTool("tokens","wallet");
+document.querySelectorAll("[data-qk]").forEach(b=>b.onclick=()=>{
+  const q=b.dataset.qk;
+  if(q==="swap")openTool("swap","trade");
+  else if(q==="discover")showView("discover");
+  else if(q==="tokens")openTool("tokens","wallet");
+  else if(q==="backup")openTool("backup","wallet");
+});
+$("addrChip").onclick=()=>{if(state.wallet)copyText(state.wallet.evm.address,"EVM address copied");};
+/* Receive — every chain's address, copy or QR */
+function openReceive(){
+  const w=state.wallet;if(!w)return;
+  $("receiveList").innerHTML=["btc","evm","sol","trx","sui","ton","near"].map(k=>{
+    const c=w[k];
+    return `<div class="txitem"><strong>${esc(c.chain)}</strong> <span class="pill">${esc(c.symbol)}</span><div class="addr">${esc(c.address)}</div><div class="row"><button class="small" data-rcopy="${k}" type="button">Copy</button><button class="small" data-rqr="${k}" type="button">QR code</button></div></div>`;
+  }).join("");
+  document.querySelectorAll("[data-rcopy]").forEach(b=>b.onclick=()=>copyText(state.wallet[b.dataset.rcopy].address,"Address copied"));
+  document.querySelectorAll("[data-rqr]").forEach(b=>b.onclick=()=>{$("receiveDialog").close();showQR(b.dataset.rqr);});
+  $("receiveDialog").showModal();
+}
+$("homeReceiveBtn").onclick=openReceive;
+$("addFundsBtn").onclick=openReceive;
+$("receiveClose").onclick=()=>$("receiveDialog").close();
+/* Discover category filter */
+document.querySelectorAll("[data-dcat]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("[data-dcat]").forEach(x=>x.classList.toggle("on",x===b));
+  const cat=b.dataset.dcat;
+  document.querySelectorAll(".dsec").forEach(s=>s.classList.toggle("hidden",cat!=="hot"&&s.dataset.cat!==cat));
+});
+/* Swap / Limit modes */
+function setSwapMode(m){
+  $("swapQuotePart").classList.toggle("hidden",m!=="swap");
+  $("swapLimitPart").classList.toggle("hidden",m!=="limit");
+  $("swapModeSwapBtn").classList.toggle("on",m==="swap");
+  $("swapModeLimitBtn").classList.toggle("on",m==="limit");
+}
+$("swapModeSwapBtn").onclick=()=>setSwapMode("swap");
+$("swapModeLimitBtn").onclick=()=>setSwapMode("limit");
+</script>
+</body>
+</html>

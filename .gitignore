@@ -1,0 +1,12 @@
+# Never commit keys, seeds, or backups
+private/
+*.pem
+*.key
+backup.json
+backup.txt
+.env
+
+# Deps + logs
+node_modules/
+*.log
+sync-status.json

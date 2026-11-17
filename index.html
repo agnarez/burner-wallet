@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agnarez — Burner Wallet</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b0e14; color: #e6e9f0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6; }
+  a { color: #22d3ee; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; }
+  header { text-align: center; margin-bottom: 40px; }
+  .avatar { width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, #22d3ee, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 44px; margin: 0 auto 16px; }
+  h1 { font-size: 32px; letter-spacing: -0.5px; }
+  .tag { color: #9aa3b2; margin-top: 6px; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 18px; }
+  .links a { border: 1px solid #263043; border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+  .card { background: #121826; border: 1px solid #1e293b; border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 20px; margin-bottom: 8px; }
+  .card p { color: #b6bdd0; font-size: 15px; }
+  .btn { display: inline-block; background: #22d3ee; color: #06202a; font-weight: 700; border-radius: 999px; padding: 10px 22px; margin-top: 14px; }
+  .btn:hover { text-decoration: none; opacity: .9; }
+  .btn.ghost { background: transparent; border: 1px solid #22d3ee; color: #22d3ee; margin-left: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+  td { padding: 8px 4px; border-top: 1px solid #1e293b; }
+  td:first-child { color: #9aa3b2; width: 130px; }
+  code { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+  .warn { background: #2a1414; border-color: #5b2323; }
+  .warn p { color: #f0b4b4; }
+  footer { text-align: center; color: #5b6474; font-size: 13px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="avatar">🦞</div>
+    <h1>agnarez</h1>
+    <p class="tag">Developer · Researcher · Bitcoin Puzzle Hunter</p>
+    <div class="links">
+      <a href="https://github.com/agnarez">GitHub</a>
+      <a href="https://x.com/agnarez_">X</a>
+      <a href="https://t.me/agnarez">Telegram</a>
+      <a href="https://linktr.ee/agnarez">Linktree</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>🔥 Burner Wallet</h2>
+    <p>A multi-chain burner wallet from a single mnemonic — Bitcoin SegWit, all EVM chains, Solana, TRON, SUI, TON and NEAR — with a dashboard that runs entirely in your browser. Import-only, locked by default, keys never leave your device.</p>
+    <a class="btn" href="burner-wallet.html">Open the dashboard</a>
+    <a class="btn ghost" href="https://github.com/agnarez/burner-wallet">View the code</a>
+  </div>
+
+  <div class="card">
+    <h2>⛏️ Bitcoin Puzzle Hunt</h2>
+    <p>Hunting the five known pubkey-exposed Bitcoin puzzles — #140, #145, #150, #155, #160 — for 75 BTC combined. Research, solver tooling and live progress.</p>
+    <a class="btn" href="https://muse.ai/s/bitcoin-puzzle-hunt-research-xtxu6xa8ubzdgx0/axoghp0rB4ISigDvMiSogBS0IxjdLZeOHVcGPvN2LQQ">Hunt research page</a>
+  </div>
+
+  <div class="card">
+    <h2>🚰 Faucets</h2>
+    <p>Free testnet tokens for trying the wallet — 20 testnet USDC each on Sepolia, Base Sepolia and Arc Testnet, plus 0.00046 testnet4 BTC claimed so far. Testnet only, no real value.</p>
+    <a class="btn ghost" href="faucet-plan.md">Faucet plan</a>
+  </div>
+
+  <div class="card">
+    <h2>📬 Receive addresses</h2>
+    <p>Public addresses for this burner wallet:</p>
+    <table>
+      <tr><td>Bitcoin</td><td><code>bc1qdpk0z4pcdn0e8urv3rasjcacy3q9pzgln9l0h7</code></td></tr>
+      <tr><td>EVM (all chains)</td><td><code>0x6F311641923246e7f4fE2F1F679c75f4DE107621</code></td></tr>
+      <tr><td>Solana</td><td><code>9QMdu5ENdobub4ZkwB2tyNEx9PqPRQ4EHsZKG6MGYENU</code></td></tr>
+      <tr><td>TRON</td><td><code>TH4h7KTc55KCjXNwWtRVuiaZyCeg1rMFo8</code></td></tr>
+      <tr><td>SUI</td><td><code>0x0b82bc539a2ef944d3ee04799253ed960bd318d6088389eb5916352cb73af69e</code></td></tr>
+      <tr><td>TON</td><td><code>EQAzTI-eWYDj4doIRmozWtvLTkALBX6PqWTLkUojRDhuDKHo</code></td></tr>
+    </table>
+  </div>
+
+  <div class="card warn">
+    <h2>⚠️ Burner only</h2>
+    <p>Small amounts only — never a vault. Never share a seed phrase or private key with anyone, ever. Test on testnet first with tiny amounts before mainnet.</p>
+  </div>
+
+  <footer>© 2026 agnarez · Built free, on the open web.</footer>
+</div>
+</body>
+</html>
