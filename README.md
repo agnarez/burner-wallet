@@ -37,6 +37,35 @@ Your addresses are in the dashboard after import. The seed phrase and private ke
 
 Testnet tokens for trying the wallet: see [faucet-plan.md](faucet-plan.md). Claimed so far: 20 testnet USDC each on Sepolia, Base Sepolia and Arc Testnet, plus 0.00046 testnet4 BTC, plus 0.01 testnet ETH and 5 each of TSLA/AMZN/PLTR/NFLX/AMD on Robinhood Chain Testnet. Testnet only, no real value.
 
+## Sniper tool
+
+`sniper/` — Node.js on-chain sniper (ethers v6): watches for new token
+launches on testnet DEXes, buys immediately, sells on take-profit /
+stop-loss / max-hold. Dry-run by default. Burner wallet signs, Circle
+agent wallet receives profits. See [sniper/README.md](sniper/README.md) —
+including the honest risks (gas costs, honeypots, wash trading).
+
+## Soul-bound names
+
+`names/` — `NameSBT`, a soul-bound (ERC-5192, non-transferable) ERC-721
+for names: mint a name once, it can never move. Forward + reverse
+lookup, burn frees the name. Hardhat + OpenZeppelin. Deploys on Arc
+Testnet (default) and Sepolia; the burner signs, the Circle agent wallet
+can be given a name via `mintTo`. See [names/README.md](names/README.md)
+— including how it differs from ENS / Base names (transferable, paid).
+
+## Token launcher
+
+`tokens/` — `TaxToken`, an ERC-20 with a configurable transfer tax
+(default 5%, hard-capped at 10%): 40% burn, 30% automatic buyback,
+30% automatic liquidity-pool funding. Permissionless `processBuyback()`
+and `addLiquidity()`. No mint, no blacklist, no pause. Foundry +
+OpenZeppelin, 19 tests. Deploys on Arc Testnet (default, router empty)
+and Sepolia (verified V2 router — full buyback/LP works there).
+See [tokens/README.md](tokens/README.md). Testnet only — a mainnet
+launch is the owner's call, and the token name/symbol/supply are
+placeholders until then.
+
 ## Scripts
 
 - `generate.js` — generate + verify the wallet (test vectors first, then a fresh mnemonic). Requires Node.js 18+.

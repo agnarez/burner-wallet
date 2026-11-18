@@ -1,0 +1,5 @@
+# Never commit keys, seeds, or local run state
+.env
+node_modules/
+*.log
+positions.json
