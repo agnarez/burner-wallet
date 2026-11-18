@@ -33,6 +33,19 @@ import {IUniswapV2Router02} from "./interfaces/IUniswapV2Router02.sol";
 /// - Swaps use amountOutMin = 0. That is fine on testnets, but on
 ///   mainnet a public buyback/LP call can be sandwiched. Mainnet
 ///   deployments should add slippage protection or a trusted keeper.
+/// - deploy() lets the owner deploy other contracts via CREATE2 with
+///   this contract as the deployer (the $AGNA vanity system: the token
+///   contract deploys the NameSBT registry so both addresses carry the
+///   0xa69000 prefix). See tokens/README.md "Vanity addresses".
+/// - TAX MODEL (changed 2026-11-18): the transfer tax applies ONLY to
+///   buys and sells — a transfer TO the liquidity-pool pair (a sell)
+///   or FROM the pair (a buy). Plain wallet-to-wallet transfers are
+///   tax-free. The pair address is set by the owner with setPair()
+///   AFTER the pool is created (until then pair == address(0) and no
+///   transfer is taxed). The owner, the router, and this contract are
+///   tax-exempt, so the initial liquidity add and the agent allocation
+///   are never taxed. The pair itself can never be excluded (see
+///   setExcluded), or the tax trigger would silently stop working.
 contract TaxToken is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -77,6 +90,13 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
     /// @notice Addresses that neither pay nor receive tax (owner, contract, router…).
     mapping(address => bool) public isExcludedFromTax;
 
+    /// @notice The liquidity-pool pair (Uniswap V2 pair) for this token.
+    /// @dev The tax applies ONLY to transfers to/from this address (a
+    /// sell / a buy). Set by the owner with setPair() after the pool
+    /// is created; address(0) until then, which means no transfer is
+    /// taxed yet. The pair can never be tax-excluded (see setExcluded).
+    address public pair;
+
     // ------------------------------------------------------------------
     // Errors
     // ------------------------------------------------------------------
@@ -87,6 +107,8 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
     error ReserveTooSmall(uint256 reserve, uint256 threshold);
     error ZeroAddress();
     error CannotChangeSelfExclusion();
+    error CannotChangePairExclusion();
+    error Create2DeployFailed();
 
     // ------------------------------------------------------------------
     // Events
@@ -97,8 +119,10 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
     event QuoteTokenUpdated(address indexed quoteToken);
     event ThresholdsUpdated(uint256 buybackThreshold, uint256 liquidityThreshold);
     event ExcludedUpdated(address indexed account, bool excluded);
+    event PairUpdated(address indexed pair);
     event BuybackProcessed(uint256 indexed sold, uint256 indexed bought, uint256 quoteReceived);
     event LiquidityAdded(uint256 indexed tokenAmount, uint256 indexed quoteAmount, uint256 liquidity, address indexed lpRecipient);
+    event ContractDeployed(address indexed deployed, bytes32 indexed salt);
 
     // ------------------------------------------------------------------
     // Constructor
@@ -135,12 +159,15 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
     // Tax logic
     // ------------------------------------------------------------------
 
-    /// @notice Applies the tax on every transfer between non-excluded parties.
+    /// @notice Applies the tax on buys and sells ONLY: a transfer TO
+    /// the liquidity-pool pair (a sell) or FROM the pair (a buy).
+    /// Plain wallet-to-wallet transfers are tax-free.
     /// @dev Mint (from == 0) and burn (to == 0) are never taxed.
     /// Remainder dust from the share split goes to the liquidity share,
     /// so burn + buyback + liquidity == tax exactly. No dust is ever lost.
     function _update(address from, address to, uint256 value) internal override {
-        if (from != address(0) && to != address(0) && taxBps > 0 && !isExcludedFromTax[from]
+        bool isBuyOrSell = (from == pair || to == pair);
+        if (from != address(0) && to != address(0) && taxBps > 0 && isBuyOrSell && !isExcludedFromTax[from]
             && !isExcludedFromTax[to]) {
             uint256 tax = (value * taxBps) / BPS_DENOMINATOR;
             if (tax > 0) {
@@ -213,11 +240,26 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
         emit ThresholdsUpdated(buybackThreshold_, liquidityThreshold_);
     }
 
+    /// @notice Set the liquidity-pool pair address that the tax applies
+    /// to (buys/sells). Owner-only; call it after the pool is created
+    /// (the pool script does this automatically).
+    /// @dev The pair can never be tax-excluded, so any exclusion on
+    /// this address is cleared here — otherwise the tax trigger would
+    /// silently stop working. Setting pair back to address(0) turns
+    /// the tax off for every transfer (same effect as setTax(0)).
+    function setPair(address pair_) external onlyOwner {
+        pair = pair_;
+        if (pair_ != address(0)) isExcludedFromTax[pair_] = false;
+        emit PairUpdated(pair_);
+    }
+
     /// @notice Exclude (or un-exclude) an address from the tax.
     /// @dev The contract itself can never be un-excluded: internal
     /// reserve movements must stay untaxed or the accounting breaks.
+    /// The pair can never be excluded either: it is the tax trigger.
     function setExcluded(address account, bool excluded) external onlyOwner {
         if (account == address(this)) revert CannotChangeSelfExclusion();
+        if (account == pair) revert CannotChangePairExclusion();
         isExcludedFromTax[account] = excluded;
         emit ExcludedUpdated(account, excluded);
     }
@@ -346,6 +388,41 @@ contract TaxToken is ERC20, Ownable, ReentrancyGuard {
         }
 
         emit LiquidityAdded(tokenUsed, quoteReceived, liquidity, owner());
+    }
+
+    // ------------------------------------------------------------------
+    // CREATE2 deployment — the token contract as deployer
+    // ------------------------------------------------------------------
+
+    /// @notice Deploy a contract via CREATE2 with THIS token contract as
+    /// the deployer (msg.sender of the deployed contract's constructor
+    /// is this contract). Owner-only.
+    /// @dev This is how $AGNA deploys the NameSBT registry (and any
+    /// future contract) so the deployed address is vanity-mined against
+    /// this contract's address: the salt is mined off-chain so that
+    /// keccak256(0xff ++ address(this) ++ salt ++ keccak256(initCode))
+    /// starts with the 0xa69000 prefix. The deployed contract's
+    /// constructor MUST take an explicit owner (see NameSBT) — otherwise
+    /// this contract would own it and nobody could mint names.
+    /// Emits ContractDeployed. Reverts if CREATE2 returns address(0)
+    /// (e.g. the salt was already used for this init code).
+    function deploy(bytes memory initCode, bytes32 salt) external onlyOwner returns (address deployed) {
+        assembly {
+            deployed := create2(0, add(initCode, 0x20), mload(initCode), salt)
+        }
+        if (deployed == address(0)) revert Create2DeployFailed();
+        emit ContractDeployed(deployed, salt);
+    }
+
+    /// @notice Predict the address `deploy` would create for this init
+    /// code hash and salt. Used by the off-chain vanity salt miner to
+    /// verify a mined salt before sending the transaction.
+    function predictDeploy(bytes32 initCodeHash, bytes32 salt) external view returns (address) {
+        return address(
+            uint160(
+                uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))
+            )
+        );
     }
 
     // ------------------------------------------------------------------

@@ -28,8 +28,10 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
  *    the way .eth / .base.eth names do.
  *
  * Wallet roles (agnarez's setup):
- *  - The burner wallet deploys this contract and signs mints
- *    (it holds an exportable key).
+ *  - The burner wallet owns this contract and signs mints (it holds
+ *    an exportable key). It is set as the owner explicitly in the
+ *    constructor — the deployer is the $AGNA token contract (CREATE2),
+ *    not the burner, so ownership cannot default to msg.sender.
  *  - The Circle agent wallet is MPC-held by Circle (no exportable
  *    key), so it can only ever be a holder/recipient: the contract
  *    owner mints a name TO it with `mintTo`. It can never sign.
@@ -67,10 +69,21 @@ contract NameSBT is ERC721, ERC721Enumerable, IERC5192, Ownable {
     /// owner -> token id of their primary name, 0 = none.
     mapping(address => uint256) private _primaryTokenId;
 
+    /// @param initialOwner_ the address that owns this contract (and
+    /// can therefore mintTo). It is an explicit constructor argument —
+    /// NOT msg.sender — because the contract is deployed by the $AGNA
+    /// token contract via CREATE2 (the token contract is the deployer),
+    /// and if ownership defaulted to msg.sender the token contract
+    /// itself would own the registry and nobody could mint names.
+    /// Pass the burner wallet here.
     constructor(
         string memory name_,
-        string memory symbol_
-    ) ERC721(name_, symbol_) Ownable(msg.sender) {}
+        string memory symbol_,
+        address initialOwner_
+    ) ERC721(name_, symbol_) Ownable(initialOwner_) {}
+    // Note: Ownable's own constructor reverts with
+    // OwnableInvalidOwner if initialOwner_ is the zero address, so
+    // no separate check is needed here.
 
     // ------------------------------------------------------------------
     // Minting

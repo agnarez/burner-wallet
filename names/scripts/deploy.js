@@ -38,7 +38,15 @@ console.log(
   `Balance:   ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} native`,
 );
 
-const sbt = await ethers.deployContract("NameSBT", ["Burner Names", "BNAME"]);
+// The owner is set explicitly (third constructor arg): the registry
+// is deployed by the $AGNA token contract via CREATE2 in the vanity
+// flow, so ownership must NOT default to msg.sender (that would make
+// the token contract the owner and nobody could mint names).
+const sbt = await ethers.deployContract("NameSBT", [
+  "Burner Names",
+  "BNAME",
+  deployer.address,
+]);
 await sbt.waitForDeployment();
 const address = await sbt.getAddress();
 console.log(`NameSBT deployed at: ${address}`);

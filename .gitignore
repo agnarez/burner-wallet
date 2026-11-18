@@ -10,3 +10,6 @@ backup.txt
 node_modules/
 *.log
 sync-status.json
+
+# Built artifacts (rebuilt automatically)
+tokens/script/vanity-miner

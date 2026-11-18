@@ -11,8 +11,54 @@ describe("NameSBT", function () {
   before(async function () {
     ({ ethers } = await network.getOrCreate());
     [deployer, alice, bob] = await ethers.getSigners();
-    sbt = await ethers.deployContract("NameSBT", ["Burner Names", "BNAME"]);
+    sbt = await ethers.deployContract("NameSBT", [
+      "Burner Names",
+      "BNAME",
+      deployer.address,
+    ]);
     await sbt.waitForDeployment();
+  });
+
+  describe("ownership", function () {
+    it("sets the explicit initial owner (not the deployer)", async function () {
+      expect(await sbt.owner()).to.equal(deployer.address);
+      // A second registry owned by someone else: the deployer is NOT
+      // the owner, so it cannot mintTo there. This is the case that
+      // matters for the vanity flow — the $AGNA token contract deploys
+      // the registry, and the burner is the explicit owner.
+      const other = await ethers.deployContract("NameSBT", [
+        "Other Names",
+        "ONAME",
+        alice.address,
+      ]);
+      await other.waitForDeployment();
+      expect(await other.owner()).to.equal(alice.address);
+      await expect(
+        other.connect(deployer).mintTo(bob.address, "notyours.arc"),
+      ).to.be.revertedWithCustomError(other, "OwnableUnauthorizedAccount");
+      const tx = await other.connect(alice).mintTo(bob.address, "bobs.arc");
+      await expect(tx)
+        .to.emit(other, "NameMinted")
+        .withArgs(bob.address, 1, "bobs.arc");
+    });
+
+    it("rejects the zero address as initial owner", async function () {
+      // Send the creation transaction directly so the revert can be
+      // asserted on the transaction (deployContract's promise rejects
+      // before the matcher can see the revert reason).
+      const factory = await ethers.getContractFactory("NameSBT");
+      const tx = await factory.getDeployTransaction(
+        "Burner Names",
+        "BNAME",
+        ethers.ZeroAddress,
+      );
+      // OpenZeppelin's Ownable constructor rejects the zero address
+      // with OwnableInvalidOwner.
+      await expect(deployer.sendTransaction(tx)).to.be.revertedWithCustomError(
+        sbt,
+        "OwnableInvalidOwner",
+      );
+    });
   });
 
   describe("mint", function () {

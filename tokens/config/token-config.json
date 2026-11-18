@@ -1,26 +1,47 @@
 {
   "chains": {
     "11155111": {
+      "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",
       "default": false,
       "deployable": true,
       "deployer": "burner only (agent holds 0 ETH, cannot pay gas)",
       "explorer": "https://sepolia.etherscan.io",
+      "factory": "0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
       "gasBalances": "burner 0.05 ETH (funded by agnarez himself, tx 0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035, receipt 0x1, verified on-chain 2026-11-18 ~21:58 WIB); agent 0 ETH",
       "gasFunded": true,
       "gasToken": "ETH",
       "name": "sepolia",
-      "notes": "Second deploy chain, usable NOW for the burner wallet. 0.05 ETH covers a few deploys \u2014 watch the balance. Router is the official Uniswap V2 Router02, verified live. Full buyback/LP mechanics work here from day one.",
+      "notes": "Second deploy chain, usable NOW for the burner wallet. 0.05 ETH covers a few deploys \u2014 watch the balance. Router is the official Uniswap V2 Router02, verified live. Full buyback/LP mechanics work here from day one. Pool: AGNA/ETH via this factory+router; pair address is set by the V2 factory and cannot be vanity.",
       "quoteSymbol": "ETH",
       "quoteToken": "",
       "router": "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3",
       "routerVerified": "live 2026-11-18: code present, WETH() and factory() return the official factory 0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
-      "rpc": "https://ethereum-sepolia-rpc.publicnode.com"
+      "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+      "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+    },
+    "4441": {
+      "agentWallet": null,
+      "default": false,
+      "deployable": true,
+      "deployer": "burner only (agent wallet does not exist on this chain)",
+      "explorer": "https://explorer.testnet.liteforge.zeeve.net/",
+      "gasBalances": "burner 0.05 zkLTC (claimed 2026-11-18, verified via RPC), agent 0 zkLTC",
+      "gasFunded": true,
+      "gasToken": "zkLTC",
+      "name": "litvm-testnet",
+      "notes": "LitVM testnet (\"LiteForge\"), Litecoin's EVM rollup, chain 4441, verified 2026-11-18. Burner holds 0.05 zkLTC (claimed 2026-11-18, verified via RPC), so the deploy script allows this chain for the burner; agent wallet holds none. No Uniswap V2 router verified on LitVM yet \u2014 deploy with router empty; tax + burn work, buyback/LP activate via setRouter() once a verified testnet router exists. Quote path is native zkLTC.",
+      "quoteSymbol": "zkLTC",
+      "quoteToken": "",
+      "router": "",
+      "rpc": "https://rpc.testnet.liteforge.zeeve.net/"
     },
     "46630": {
+      "agentWallet": null,
       "default": false,
       "deployable": true,
       "deployer": "burner only",
       "explorer": "https://explorer.testnet.chain.robinhood.com",
+      "explorerApi": "https://explorer.testnet.chain.robinhood.com/api/v2/",
       "gasBalances": "burner 0.01005 testnet ETH (0.01 + 0.00005 claimed by agnarez from the Zalalena Robinhood faucet, tx 0x6d339411e3466ae8636d5665b2a72bccfb2b89591d2f9634cf86ae09a4209c44, receipt 0x1, verified on-chain 2026-11-18 ~22:02 WIB); agent wallet does not exist on this chain",
       "gasFunded": true,
       "gasToken": "ETH",
@@ -29,10 +50,10 @@
       "quoteSymbol": "ETH",
       "quoteToken": "",
       "router": "",
-      "rpc": "https://rpc.testnet.chain.robinhood.com",
-      "explorerApi": "https://explorer.testnet.chain.robinhood.com/api/v2/"
+      "rpc": "https://rpc.testnet.chain.robinhood.com"
     },
     "5042002": {
+      "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",
       "default": true,
       "deployable": true,
       "deployer": "burner only (agent holds USDC but cannot sign deploys \u2014 MPC)",
@@ -48,6 +69,7 @@
       "rpc": "https://arc-testnet-rpc.publicnode.com"
     },
     "84532": {
+      "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",
       "default": false,
       "deployable": false,
       "explorer": "https://sepolia.basescan.org",
@@ -60,21 +82,6 @@
       "quoteToken": "",
       "router": "",
       "rpc": "https://base-sepolia-rpc.publicnode.com"
-    },
-    "4441": {
-      "default": false,
-      "deployable": true,
-      "deployer": "burner only (agent wallet does not exist on this chain)",
-      "explorer": "https://explorer.testnet.liteforge.zeeve.net/",
-      "gasBalances": "burner 0.05 zkLTC (claimed 2026-11-18, verified via RPC), agent 0 zkLTC",
-      "gasFunded": true,
-      "gasToken": "zkLTC",
-      "name": "litvm-testnet",
-      "notes": "LitVM testnet (\"LiteForge\"), Litecoin's EVM rollup, chain 4441, verified 2026-11-18. Burner holds 0.05 zkLTC (claimed 2026-11-18, verified via RPC), so the deploy script allows this chain for the burner; agent wallet holds none. No Uniswap V2 router verified on LitVM yet \u2014 deploy with router empty; tax + burn work, buyback/LP activate via setRouter() once a verified testnet router exists. Quote path is native zkLTC.",
-      "quoteSymbol": "zkLTC",
-      "quoteToken": "",
-      "router": "",
-      "rpc": "https://rpc.testnet.liteforge.zeeve.net/"
     }
   },
   "token": {
@@ -84,11 +91,14 @@
     "decimals": 18,
     "initialSupplyTokens": 404000000000000,
     "liquidityShareBps": 3000,
+    "lpHandling": "LP tokens go to the deployer/owner (burner wallet) \u2014 removable/withdrawable at any time, never locked or burned.",
     "name": "AGNAmuse",
     "note": "Final params picked by agnarez 2026-11-18: name AGNAmuse, symbol AGNA, max total supply 404T (404,000,000,000,000), fixed supply minted once, no mint function. Pool: create on Sepolia after deploy (only chain with a verified V2 DEX); LP tokens to owner, withdrawable. Vanity addresses: pattern to be confirmed (0xa69...).",
+    "poolAgnaFractionBps": 9900,
+    "poolGasFractionBps": 4040,
+    "poolNote": "Pool funding rule (agnarez, FINAL 2026-11-18): the token deploys PER CHAIN, each chain minting its own 404T. Each chain's pool pairs AGNA with that chain's native gas token (ETH Sepolia/Robinhood, USDC Arc, zkLTC LitVM). Per chain: gas side 40.4% of the wallet's native-gas balance (Sepolia 0.0202 ETH, Arc 32.32 USDC, LitVM 0.0202 zkLTC, Robinhood 0.00406 ETH); AGNA side 99% of that chain's burner AGNA after the 10% agent allocation (~360T per chain; ~3.6T stays with the burner). Per-chain pool numbers: Sepolia ~360T AGNA + 0.0202 ETH; Arc ~360T + 32.32 USDC; LitVM ~360T + 0.0202 zkLTC; Robinhood ~360T + 0.00406 ETH. poolAgnaFractionBps 9900 = 99% of the LIVE AGNA balance at pool time. Agent allocation (10%): sent to the Circle agent wallet only on chains where it exists (Sepolia/Arc/Base Sepolia, chains.<id>.agentWallet); on Robinhood/LitVM it STAYS with the burner \u2014 never sent to an address nobody controls there. LP tokens go to the burner (owner), removable/withdrawable, never locked/burned. Pools open per chain only once a DEX/router is verified on that chain \u2014 Sepolia first.",
     "symbol": "AGNA",
-    "taxBps": 500,
-    "lpHandling": "LP tokens go to the deployer/owner (burner wallet) \u2014 removable/withdrawable at any time, never locked or burned."
+    "taxBps": 500
   },
   "wallets": {
     "agent": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",

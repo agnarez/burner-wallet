@@ -121,6 +121,12 @@ this project.
 (`contracts/interfaces/IERC5192.sol`, defined locally because OpenZeppelin
 doesn't ship it) + Ownable. Solidity 0.8.28, Cancun EVM.
 
+The constructor takes `(string name, string symbol, address
+initialOwner)` — the owner is set explicitly, not taken from
+`msg.sender`, so the $AGNA token contract can deploy the registry via
+CREATE2 with the burner as owner (otherwise the token contract would
+own the registry and nobody could mint names).
+
 - `mint(name)` — mint a name for yourself. First name becomes primary.
 - `mintTo(to, name)` — owner-only; how the deployer gives a name to the
   agent wallet (which can't sign).
@@ -140,10 +146,12 @@ names you care about first.
 
 ## Tests
 
-`npm test` — 17 tests on a local chain:
+`npm test` — 19 tests on a local chain:
 
 - mint (owner recorded, primary set, lowercase normalization, invalid
   names rejected, owner-only `mintTo`)
+- ownership (explicit `initialOwner` is set, non-owner cannot
+  `mintTo`, zero owner reverts)
 - soul-bound (all transfer forms blocked, approvals blocked, `locked()`
   true, ERC-5192 interface id)
 - uniqueness (same name twice reverts, case-insensitive)

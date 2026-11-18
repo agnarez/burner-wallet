@@ -19,6 +19,7 @@ contract TaxTokenTest is Test {
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
     address internal carol = makeAddr("carol");
+    address internal pairAddr = makeAddr("pair"); // mock liquidity-pool pair
 
     uint256 internal constant SUPPLY = 1_000_000_000 ether;
     uint256 internal constant TAX_BPS = 500; // 5%
@@ -49,6 +50,13 @@ contract TaxTokenTest is Test {
         vm.deal(address(router), 1_000_000 ether);
         vm.prank(owner);
         token.transfer(address(router), 500_000 ether);
+        // Fund the mock pair so it can send buys, then point the tax at it.
+        // (Owner -> pair is untaxed: the owner is excluded, and the pair
+        // is not set yet at this point anyway.)
+        vm.prank(owner);
+        token.transfer(pairAddr, 1_000_000 ether);
+        vm.prank(owner);
+        token.setPair(pairAddr);
         // Fund users (owner is tax-excluded, so funding is untaxed).
         vm.prank(owner);
         token.transfer(alice, 1_000_000 ether);
@@ -70,18 +78,31 @@ contract TaxTokenTest is Test {
     }
 
     // ------------------------------------------------------------------
-    // Tax math
+    // Tax math — buys/sells only (pair-based)
     // ------------------------------------------------------------------
 
-    function testTaxMath() public {
+    function testWalletToWalletIsTaxFree() public {
         uint256 amount = 10_000 ether;
-        (uint256 tax, uint256 burn, uint256 buyback, uint256 lp) = _taxSplit(amount);
         uint256 supplyBefore = token.totalSupply();
 
         vm.prank(alice);
         token.transfer(bob, amount);
 
-        assertEq(token.balanceOf(bob), 1_000_000 ether + amount - tax, "recipient gets amount minus tax");
+        assertEq(token.balanceOf(bob), 1_000_000 ether + amount, "wallet-to-wallet transfer is tax-free");
+        assertEq(token.totalSupply(), supplyBefore, "no burn on wallet transfer");
+        assertEq(token.buybackReserve(), 0, "no buyback reserve from wallet transfer");
+        assertEq(token.liquidityReserve(), 0, "no lp reserve from wallet transfer");
+    }
+
+    function testSellIsTaxed() public {
+        uint256 amount = 10_000 ether;
+        (uint256 tax, uint256 burn, uint256 buyback, uint256 lp) = _taxSplit(amount);
+        uint256 supplyBefore = token.totalSupply();
+
+        vm.prank(alice);
+        token.transfer(pairAddr, amount);
+
+        assertEq(token.balanceOf(pairAddr), 1_000_000 ether + amount - tax, "pair receives amount minus tax");
         assertEq(token.totalSupply(), supplyBefore - burn, "burn share leaves supply");
         assertEq(token.buybackReserve(), buyback, "buyback reserve");
         assertEq(token.liquidityReserve(), lp, "liquidity reserve");
@@ -91,28 +112,42 @@ contract TaxTokenTest is Test {
         assertEq(lp, 150 ether, "lp is 30% of the tax");
     }
 
-    function testTaxMathFuzz(uint256 amount) public {
+    function testBuyIsTaxed() public {
+        uint256 amount = 10_000 ether;
+        (uint256 tax, uint256 burn, uint256 buyback, uint256 lp) = _taxSplit(amount);
+        uint256 supplyBefore = token.totalSupply();
+
+        vm.prank(pairAddr);
+        token.transfer(bob, amount);
+
+        assertEq(token.balanceOf(bob), 1_000_000 ether + amount - tax, "buyer receives amount minus tax");
+        assertEq(token.totalSupply(), supplyBefore - burn, "burn share leaves supply");
+        assertEq(token.buybackReserve(), buyback, "buyback reserve");
+        assertEq(token.liquidityReserve(), lp, "liquidity reserve");
+    }
+
+    function testSellTaxFuzz(uint256 amount) public {
         amount = bound(amount, 1_000, 100_000 ether);
         (uint256 tax, uint256 burn, uint256 buyback, uint256 lp) = _taxSplit(amount);
         uint256 supplyBefore = token.totalSupply();
-        uint256 bobBefore = token.balanceOf(bob);
+        uint256 pairBefore = token.balanceOf(pairAddr);
         uint256 contractBefore = token.balanceOf(address(token));
 
         vm.prank(alice);
-        token.transfer(bob, amount);
+        token.transfer(pairAddr, amount);
 
         // Conservation: nothing is created or lost except the burn.
-        assertEq(token.balanceOf(bob) - bobBefore, amount - tax, "recipient delta");
+        assertEq(token.balanceOf(pairAddr) - pairBefore, amount - tax, "pair delta");
         assertEq(supplyBefore - token.totalSupply(), burn, "burned delta");
         assertEq(token.balanceOf(address(token)) - contractBefore, buyback + lp, "reserve delta");
         assertEq(burn + buyback + lp, tax, "splits sum to the tax exactly - no dust lost");
     }
 
     function testTinyTransferPaysNoTax() public {
-        // 1 wei: tax rounds to 0, transfer goes through whole.
+        // 1 wei wallet transfer: tax-free by the pair rule.
         vm.prank(alice);
         token.transfer(bob, 1);
-        assertEq(token.balanceOf(bob), 1_000_000 ether + 1, "1 wei transfer untaxed by rounding");
+        assertEq(token.balanceOf(bob), 1_000_000 ether + 1, "1 wei transfer untaxed");
     }
 
     function testExcludedAddressesPayNoTax() public {
@@ -134,8 +169,8 @@ contract TaxTokenTest is Test {
         token.setTax(0, BURN_SHARE, BUYBACK_SHARE, LP_SHARE);
         uint256 supplyBefore = token.totalSupply();
         vm.prank(alice);
-        token.transfer(bob, 10_000 ether);
-        assertEq(token.balanceOf(bob), 1_000_000 ether + 10_000 ether, "zero tax, full amount");
+        token.transfer(pairAddr, 10_000 ether);
+        assertEq(token.balanceOf(pairAddr), 1_000_000 ether + 10_000 ether, "zero tax, full amount on sell");
         assertEq(token.totalSupply(), supplyBefore, "zero tax, no burn");
     }
 
@@ -143,9 +178,10 @@ contract TaxTokenTest is Test {
     // Burn / buyback / LP
     // ------------------------------------------------------------------
 
+    // Reserves only build on buys/sells now: a sell (alice -> pair).
     function _buildReserves(uint256 transferAmount) internal {
         vm.prank(alice);
-        token.transfer(bob, transferAmount);
+        token.transfer(pairAddr, transferAmount);
     }
 
     function testBuybackEthPath() public {
@@ -193,9 +229,14 @@ contract TaxTokenTest is Test {
         arcToken.transfer(address(router2), 500_000 ether);
         vm.prank(owner);
         arcToken.transfer(alice, 1_000_000 ether);
-
+        // The arc token needs its own pair pointer + pair funding.
+        vm.prank(owner);
+        arcToken.transfer(pairAddr, 1_000_000 ether);
+        vm.prank(owner);
+        arcToken.setPair(pairAddr);
+        // A sell on Arc routes through the token's own reserves.
         vm.prank(alice);
-        arcToken.transfer(bob, 100_000 ether);
+        arcToken.transfer(pairAddr, 100_000 ether);
         assertEq(arcToken.buybackReserve(), 1_500 ether, "buyback reserve on quote path");
         assertEq(arcToken.liquidityReserve(), 1_500 ether, "lp reserve on quote path");
 
@@ -222,8 +263,14 @@ contract TaxTokenTest is Test {
         );
         vm.prank(owner);
         noRouter.transfer(alice, 1_000_000 ether);
+        // No router: reserves still build up on sells, but the tax
+        // process is skipped (not reverted) so trades keep working.
+        vm.prank(owner);
+        noRouter.transfer(pairAddr, 1_000_000 ether);
+        vm.prank(owner);
+        noRouter.setPair(pairAddr);
         vm.prank(alice);
-        noRouter.transfer(bob, 100_000 ether);
+        noRouter.transfer(pairAddr, 100_000 ether);
         assertEq(noRouter.buybackReserve(), 1_500 ether, "reserves still build with no router");
 
         vm.expectRevert(TaxToken.RouterNotSet.selector);
@@ -306,10 +353,12 @@ contract TaxTokenTest is Test {
         token.transfer(bob, 10_000 ether);
         assertLe(token.totalSupply(), supplyBefore, "supply never increases");
 
-        // Accounting identity: every token is held by someone.
+        // Accounting identity: every token is held by someone
+        // (owner, alice, bob, router, pair, contract).
         assertEq(
             token.balanceOf(owner) + token.balanceOf(alice) + token.balanceOf(bob)
-                + token.balanceOf(address(router)) + token.balanceOf(address(token)),
+                + token.balanceOf(address(router)) + token.balanceOf(pairAddr)
+                + token.balanceOf(address(token)),
             token.totalSupply(),
             "balances sum to totalSupply"
         );
@@ -332,7 +381,59 @@ contract TaxTokenTest is Test {
         token.transfer(stranger, 1_000 ether);
         vm.prank(stranger);
         token.transfer(carol, 500 ether);
-        assertEq(token.balanceOf(carol), 500 ether - (500 ether * TAX_BPS / 10000), "stranger transfer works, taxed normally");
+        assertEq(token.balanceOf(carol), 500 ether, "stranger transfer works, tax-free wallet-to-wallet");
+    }
+
+    // ------------------------------------------------------------------
+    // Pair pointer (buys/sells-only tax)
+    // ------------------------------------------------------------------
+
+    function testSetPairOnlyOwner() public {
+        address newPair = makeAddr("pair2");
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice)
+        );
+        token.setPair(newPair);
+
+        vm.prank(owner);
+        token.setPair(newPair);
+        assertEq(token.pair(), newPair, "owner can set the pair");
+    }
+
+    function testPairCannotBeExcluded() public {
+        vm.prank(owner);
+        vm.expectRevert(TaxToken.CannotChangePairExclusion.selector);
+        token.setExcluded(pairAddr, true);
+    }
+
+    function testSetPairClearsExclusion() public {
+        // An address excluded first, then made the pair, is un-excluded
+        // automatically so the tax trigger cannot be silently disabled.
+        address futurePair = makeAddr("futurePair");
+        vm.prank(owner);
+        token.setExcluded(futurePair, true);
+        assertTrue(token.isExcludedFromTax(futurePair), "excluded before");
+        vm.prank(owner);
+        token.setPair(futurePair);
+        assertFalse(token.isExcludedFromTax(futurePair), "setPair clears the exclusion");
+    }
+
+    function testTaxInactiveBeforePairSet() public {
+        // A fresh token with no pair set: even a transfer to the pair
+        // address is tax-free, because pair == address(0).
+        vm.prank(owner);
+        TaxToken fresh = new TaxToken(
+            "Fresh", "FR", SUPPLY, TAX_BPS, BURN_SHARE, BUYBACK_SHARE, LP_SHARE,
+            address(router), address(0), owner
+        );
+        assertEq(fresh.pair(), address(0), "pair starts unset");
+        vm.prank(owner);
+        fresh.transfer(alice, 1_000_000 ether);
+        vm.prank(alice);
+        fresh.transfer(pairAddr, 10_000 ether);
+        assertEq(fresh.balanceOf(pairAddr), 10_000 ether, "no tax before setPair");
+        assertEq(fresh.totalSupply(), SUPPLY, "no burn before setPair");
     }
 
     function testRenounceOwnership() public {
@@ -369,5 +470,63 @@ contract TaxTokenTest is Test {
         vm.prank(owner);
         vm.expectRevert(TaxToken.CannotChangeSelfExclusion.selector);
         token.setExcluded(address(token), false);
+    }
+
+    // ------------------------------------------------------------------
+    // CREATE2 deployment — the token contract as deployer
+    // ------------------------------------------------------------------
+
+    /// @dev Init code for a MockERC20 with the given name/symbol.
+    function _mockInitCode(string memory name_, string memory symbol_) internal pure returns (bytes memory) {
+        return abi.encodePacked(type(MockERC20).creationCode, abi.encode(name_, symbol_));
+    }
+
+    function testDeployViaCreate2() public {
+        bytes memory initCode = _mockInitCode("Deployed Token", "DEP");
+        bytes32 salt = bytes32(uint256(0x1234));
+        address predicted = token.predictDeploy(keccak256(initCode), salt);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true, address(token));
+        emit TaxToken.ContractDeployed(predicted, salt);
+        address deployed = token.deploy(initCode, salt);
+
+        assertEq(deployed, predicted, "deployed address matches prediction");
+        assertGt(deployed.code.length, 0, "deployed contract has code");
+        assertEq(MockERC20(deployed).name(), "Deployed Token", "deployed contract works");
+        assertEq(MockERC20(deployed).symbol(), "DEP", "deployed contract symbol");
+    }
+
+    function testDeployOnlyOwner() public {
+        bytes memory initCode = _mockInitCode("Deployed Token", "DEP");
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice)
+        );
+        token.deploy(initCode, bytes32(uint256(0x1234)));
+    }
+
+    function testDeploySameSaltTwiceFails() public {
+        bytes memory initCode = _mockInitCode("Deployed Token", "DEP");
+        bytes32 salt = bytes32(uint256(0x1234));
+        vm.prank(owner);
+        token.deploy(initCode, salt);
+        vm.prank(owner);
+        vm.expectRevert(TaxToken.Create2DeployFailed.selector);
+        token.deploy(initCode, salt);
+    }
+
+    function testPredictDeployMatchesCreate2Formula() public {
+        // Independent recomputation of the CREATE2 address, not via the
+        // contract's own predictDeploy() — guards against a wrong formula.
+        bytes memory initCode = _mockInitCode("Deployed Token", "DEP");
+        bytes32 salt = bytes32(uint256(0x9999));
+        bytes32 initCodeHash = keccak256(initCode);
+        address expected = address(
+            uint160(
+                uint256(keccak256(abi.encodePacked(bytes1(0xff), address(token), salt, initCodeHash)))
+            )
+        );
+        assertEq(token.predictDeploy(initCodeHash, salt), expected, "predictDeploy matches the CREATE2 formula");
     }
 }
