@@ -17,7 +17,7 @@
 const { ethers } = require('ethers');
 const { loadConfig } = require('./config');
 const { decideExit } = require('./strategy');
-const { buildBuyTx, buildSellTx, getTokenPrice, execute } = require('./swap');
+const { buildBuyTx, buildSellTx, buildBuyTxERC20, buildSellTxERC20, getTokenPrice, execute } = require('./swap');
 
 const POLL_MS = 15_000;
 
@@ -83,22 +83,44 @@ async function main() {
   const token = args.token;
 
   async function doBuy() {
-    const { tx, quotedOut, minOut } = await buildBuyTx({ provider, cfg, token, walletAddress: cfg.signerAddress });
-    const result = await execute({ provider, wallet, cfg, tx, label: `buy ${token}` });
+    // Arc Testnet buys with the ERC-20 path (approve + swapExactTokensForTokens);
+    // every other chain buys with the native path (swapExactETHForTokens).
+    let quotedOut;
+    let minOut;
+    if (cfg.buyWithERC20) {
+      const built = await buildBuyTxERC20({ provider, cfg, token, walletAddress: cfg.signerAddress });
+      quotedOut = built.quotedOut;
+      minOut = built.minOut;
+      for (const tx of built.txs) {
+        const result = await execute({ provider, wallet, cfg, tx, label: `buy ${token}` });
+        if (cfg.dryRun) {
+          console.log(`[DRY-RUN] would send tx to=${tx.to} value=${ethers.formatEther(tx.value ?? 0n)} ${cfg.nativeSymbol}`);
+        } else {
+          console.log(`Sent: tx ${result.hash}`);
+        }
+      }
+    } else {
+      const built = await buildBuyTx({ provider, cfg, token, walletAddress: cfg.signerAddress });
+      quotedOut = built.quotedOut;
+      minOut = built.minOut;
+      const result = await execute({ provider, wallet, cfg, tx: built.tx, label: `buy ${token}` });
+      if (!cfg.dryRun) console.log(`Bought: tx ${result.hash}`);
+    }
     if (cfg.dryRun) {
       console.log(`[DRY-RUN] would buy ${cfg.buyAmountNative} ${cfg.baseSymbol} -> ~${ethers.formatEther(quotedOut)} tokens (min ${ethers.formatEther(minOut)})`);
-    } else {
-      console.log(`Bought: tx ${result.hash}`);
     }
     return Number(cfg.buyAmountNative) / Number(ethers.formatEther(quotedOut));
   }
 
   async function doSell(percent) {
-    const { txs, quotedOut } = await buildSellTx({ provider, cfg, token, walletAddress: cfg.signerAddress, percent });
-    for (const tx of txs) {
+    // Arc Testnet sells with the ERC-20 path; every other chain with the native path.
+    const built = cfg.buyWithERC20
+      ? await buildSellTxERC20({ provider, cfg, token, walletAddress: cfg.signerAddress, percent })
+      : await buildSellTx({ provider, cfg, token, walletAddress: cfg.signerAddress, percent });
+    for (const tx of built.txs) {
       const result = await execute({ provider, wallet, cfg, tx, label: `sell ${token}` });
       if (cfg.dryRun) {
-        console.log(`[DRY-RUN] would sell ${percent}% -> ~${ethers.formatEther(quotedOut)} ${cfg.baseSymbol} to ${cfg.profitRecipient} (tx to=${tx.to})`);
+        console.log(`[DRY-RUN] would sell ${percent}% -> ~${ethers.formatUnits(built.quotedOut, cfg.baseDecimals ?? 18)} ${cfg.baseSymbol} to ${cfg.profitRecipient} (tx to=${tx.to})`);
       } else {
         console.log(`Sold: tx ${result.hash}`);
       }

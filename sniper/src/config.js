@@ -13,26 +13,34 @@
  *     (`circle wallet ...`). Nothing in this tool ever asks for its key,
  *     and sell proceeds can be sent to it (PROFIT_RECIPIENT).
  *
- * Chains, verified live 2026-11-18:
- *   - Arc Testnet (DEFAULT, primary): burner 80 USDC, agent 20 USDC.
- *     USDC is the native gas token. No Uniswap V2-style DEX at the
- *     canonical factory/router addresses (checked: no code there).
- *   - Robinhood Chain testnet: burner 0.01 testnet ETH (gas). Agent
- *     wallet does not exist on this chain. No V2-style DEX on testnet
- *     at the Uniswap-listed addresses (mainnet-only deployment).
+ * Chains, verified live 2026-11-18, DEX deployments verified 2026-11-19:
+ *   - Arc Testnet (DEFAULT, primary): burner ~93.68 USDC, agent 100 USDC.
+ *     USDC is the native gas token. Our own AGNAmuse V2 is deployed
+ *     (factory 0x87125a…, router 0x96ec1B…); the AGNA pool pairs AGNA
+ *     against the USDC predeploy (0x3600…0000), not WETH9 — so buys here
+ *     use the ERC-20 path (approve + swapExactTokensForTokens), with
+ *     base amounts in 6 decimals.
+ *   - Robinhood Chain testnet: burner ~0.0054 testnet ETH (gas). Agent
+ *     wallet does not exist on this chain. Our own AGNAmuse V2 is
+ *     deployed (factory 0xe9f116…, router 0x4524D5…); the AGNA pool
+ *     pairs AGNA against WETH9, so the native buy path works as-is.
+ *   - LitVM testnet (4441): burner ~0.0298 zkLTC. Our own AGNAmuse V2
+ *     is deployed (factory 0x4AcDba…, router 0x87125a…); the AGNA pool
+ *     pairs AGNA against WETH9, so the native buy path works as-is.
  *   - Sepolia: Uniswap V2 IS deployed — at Sepolia-specific addresses
  *     (factory 0xF62c…, router 0xeE56…, WETH 0xfFf9…), verified live
- *     2026-11-18 (18,772 pairs). The burner holds 0.05 ETH gas here,
- *     funded by agnarez himself (tx 0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035,
- *     receipt 0x1), so Sepolia is a usable live testnet target
- *     alongside Arc Testnet. The agent wallet holds 0 ETH.
+ *     2026-11-18 (18,772 pairs). The burner holds ~0.0298 ETH gas here
+ *     (was 0.05, funded by agnarez himself — tx 0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035,
+ *     receipt 0x1; the rest went to the AGNA token/NFT deploys), so
+ *     Sepolia is a usable live testnet target alongside Arc Testnet.
+ *     The agent wallet holds 0 ETH.
  *   - Base Sepolia: no V2 at the known addresses (the Base-mainnet
  *     factory address has no code; the contract at the mainnet router
  *     address is not a V2 router), and no gas either.
  *   - LitVM testnet ("LiteForge", Litecoin's EVM rollup, verified
  *     2026-11-18): chain 4441, gas token zkLTC, RPC
- *     https://rpc.testnet.liteforge.zeeve.net/. No V2-style DEX
- *     verified, and neither wallet holds zkLTC yet — config only.
+ *     https://rpc.testnet.liteforge.zeeve.net/. Our own AGNAmuse V2
+ *     is deployed there now (see the chain table below).
  *
  * Testnets only. There is deliberately no mainnet entry in the chain
  * table: mainnet use is the user's own call.
@@ -48,30 +56,49 @@ const CHAINS = {
     name: 'Arc Testnet',
     chainId: 5042002,
     rpc: 'https://arc-testnet-rpc.publicnode.com',
-    // USDC is the native gas token. There is no known wrapped-USDC token
-    // that a V2-style DEX pairs against — set BASE_TOKEN_ADDRESS when a
-    // DEX deployment is known.
-    baseToken: null,
+    // AGNAmuse V2 — our own deployment, verified live 2026-11-19:
+    // factory 0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d,
+    // router 0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7,
+    // WETH9 (wrapped USDC) 0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce.
+    // The AGNA pool (0xba3746f46Fbfe22E4E17083F1769b359A0b8956a,
+    // 359.964T AGNA + 64.49 USDC) pairs AGNA against the USDC predeploy
+    // (0x3600…0000), NOT against WETH9 — getPair(AGNA, WETH9) is the
+    // zero address. The predeploy IS the native token's ERC-20 form:
+    // balanceOf(burner) == the native balance (93.68 USDC, 2026-11-19).
+    // So buys here use the ERC-20 path (approve + swapExactTokensForTokens)
+    // and base amounts are 6-decimal. The native path
+    // (swapExactETHForTokens, path[0] = router.WETH()) cannot buy the
+    // AGNA pair and must not be used on this chain.
+    baseToken: '0x3600000000000000000000000000000000000000',
     baseSymbol: 'USDC',
     nativeSymbol: 'USDC',
-    baseDecimals: 18, // native balances are 18-decimal on Arc
-    factory: null,
-    router: null,
-    gasNote: 'USDC is the native gas token. Burner 80 USDC, agent wallet 20 USDC (verified 2026-11-18).',
-    dexNote: 'No Uniswap V2-style DEX on Arc Testnet at the checked addresses (verified: no code — neither the canonical addresses nor the Eco-docs Arc addresses). Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
+    baseDecimals: 6, // base token is 6-decimal; native balances stay 18-decimal
+    buyWithERC20: true,
+    factory: '0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d',
+    router: '0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7',
+    gasNote: 'USDC is the native gas token. Burner 93.68 USDC, agent wallet 100 USDC (verified 2026-11-19).',
+    dexNote: 'AGNAmuse V2 live (factory 0x87125a…, router 0x96ec1B…, verified 2026-11-19). AGNA/USDC pool 0xba3746… (359.964T AGNA + 64.49 USDC). Buys use the ERC-20 path — see the baseToken note above.',
   },
   'robinhood-testnet': {
     name: 'Robinhood Chain Testnet',
     chainId: 46630,
     rpc: 'https://rpc.testnet.chain.robinhood.com',
-    baseToken: null,
-    baseSymbol: 'ETH',
+    // AGNAmuse V2 — our own deployment, verified live 2026-11-19:
+    // factory 0xe9f116220486AB52b8D245aF3C19de5C025Adea8,
+    // router 0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58,
+    // WETH9 0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09.
+    // The AGNA pool (0x699d97ACc97bB067842Bbe8CE89dC52d805D0a22,
+    // 399.96T AGNA + 0.002006 ETH) pairs AGNA against WETH9, so the
+    // native buy path works as-is (swapExactETHForTokens, path [WETH9, token]).
+    baseToken: '0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09',
+    baseSymbol: 'WETH',
     nativeSymbol: 'ETH',
     baseDecimals: 18,
-    factory: null,
-    router: null,
-    gasNote: 'Burner holds 0.01 testnet ETH (verified 2026-11-18). The agent wallet does not exist on this chain.',
-    dexNote: 'No Uniswap V2 on testnet at the listed addresses (verified: no code — the Uniswap deployment is mainnet-only). Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
+    buyWithERC20: false,
+    factory: '0xe9f116220486AB52b8D245aF3C19de5C025Adea8',
+    router: '0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58',
+    gasNote: 'Burner holds ~0.0054 testnet ETH (verified 2026-11-19; was 0.01 before the AGNA factory/pool deploys). The agent wallet does not exist on this chain.',
+    dexNote: 'AGNAmuse V2 live (factory 0xe9f116…, router 0x4524D5…, verified 2026-11-19). AGNA/WETH9 pool 0x699d97… (399.96T AGNA + 0.002006 ETH).',
   },
   sepolia: {
     name: 'Sepolia',
@@ -85,9 +112,10 @@ const CHAINS = {
     baseSymbol: 'WETH',
     nativeSymbol: 'ETH',
     baseDecimals: 18,
+    buyWithERC20: false,
     factory: '0xF62c03E08ada871A0bEb309762E260a7a6a880E6',
     router: '0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3',
-    gasNote: 'Burner holds 0.05 ETH (verified live 2026-11-18) — gas IS available for testnet trades. Agent wallet holds 0 ETH. The 0.05 ETH was funded by agnarez himself (tx 0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035, receipt 0x1).',
+    gasNote: 'Burner holds ~0.0298 ETH (verified live 2026-11-19) — gas IS available for testnet trades. Agent wallet holds 0 ETH. The 0.05 ETH was funded by agnarez himself (tx 0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035, receipt 0x1).',
     dexNote: 'Uniswap V2 deployment verified live (18,772 pairs). The only chain here with a working V2 DEX — and the burner has gas, so the watcher can run here.',
   },
   'base-sepolia': {
@@ -102,6 +130,7 @@ const CHAINS = {
     baseSymbol: 'WETH',
     nativeSymbol: 'ETH',
     baseDecimals: 18,
+    buyWithERC20: false,
     factory: null,
     router: null,
     gasNote: 'BOTH wallets hold 0 ETH — no gas (same as Sepolia).',
@@ -113,18 +142,25 @@ const CHAINS = {
     rpc: 'https://rpc.testnet.liteforge.zeeve.net/',
     // Litecoin's EVM rollup ("LiteForge"), Arbitrum Orbit/Nitro stack.
     // Verified 2026-11-18: chain ID 4441, gas token zkLTC, RPC above,
-    // explorer https://explorer.testnet.liteforge.zeeve.net/. No
-    // Uniswap V2-style DEX verified on LitVM yet, and neither wallet
-    // holds zkLTC — config only, watcher stays off until gas + a DEX
-    // are both in place.
-    baseToken: null,
-    baseSymbol: 'zkLTC',
+    // explorer https://explorer.testnet.liteforge.zeeve.net/.
+    // AGNAmuse V2 — our own deployment, verified live 2026-11-19:
+    // factory 0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce
+    // (same address as Arc's WETH9 — same deployer + nonce sequence),
+    // router 0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d
+    // (same address as Arc's factory),
+    // WETH9 0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6.
+    // The AGNA pool (0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9,
+    // 399.96T AGNA + 0.020139 zkLTC) pairs AGNA against WETH9, so the
+    // native buy path works as-is (swapExactETHForTokens, path [WETH9, token]).
+    baseToken: '0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6',
+    baseSymbol: 'WETH',
     nativeSymbol: 'zkLTC',
     baseDecimals: 18,
-    factory: null,
-    router: null,
-    gasNote: 'Burner holds 0.05 zkLTC (claimed 2026-11-18 from the LitVM faucet, 24h cooldown); agent wallet holds 0 zkLTC. No V2 DEX verified yet, so still config-only for live trades.',
-    dexNote: 'No Uniswap V2-style DEX verified on LitVM testnet yet. Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
+    buyWithERC20: false,
+    factory: '0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce',
+    router: '0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d',
+    gasNote: 'Burner holds ~0.0298 zkLTC (verified 2026-11-19; 0.05 claimed 2026-11-18 from the LitVM faucet, 24h cooldown; the rest went to the AGNA factory/pool deploys); agent wallet holds 0 zkLTC.',
+    dexNote: 'AGNAmuse V2 live (factory 0x4AcDba…, router 0x87125a…, verified 2026-11-19). AGNA/WETH9 pool 0xE887Aa… (399.96T AGNA + 0.020139 zkLTC).',
   },
 };
 
@@ -183,6 +219,11 @@ function loadConfig(overrides = {}) {
     baseSymbol: chain.baseSymbol,
     nativeSymbol: chain.nativeSymbol,
     baseDecimals: chain.baseDecimals,
+    // Arc Testnet only: the base token is the 6-decimal USDC predeploy
+    // (the native token's ERC-20 form), so buys/sells go through
+    // approve + swapExactTokensForTokens instead of the native
+    // swapExactETHForTokens / swapExactTokensForETH path.
+    buyWithERC20: chain.buyWithERC20 === true,
     gasNote: chain.gasNote,
     dexNote: chain.dexNote,
     dryRun: (env.DRY_RUN ?? 'true').toLowerCase() !== 'false',

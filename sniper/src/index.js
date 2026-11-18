@@ -7,10 +7,12 @@
  * Dry-run is ON by default (DRY_RUN=true in .env). Live trading needs
  * DRY_RUN=false AND a PRIVATE_KEY (the burner wallet's key) in the env.
  *
- * On chains with no known DEX deployment (Arc Testnet, Robinhood Chain
- * testnet, LitVM testnet) the tool prints the wallet + gas status and stops with
- * guidance instead of pretending to watch — set FACTORY_ADDRESS /
- * ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point it at a V2-style DEX.
+ * Arc Testnet, Robinhood Chain testnet and LitVM testnet all point at our
+ * own AGNAmuse V2 deployments now (verified 2026-11-19); only Base Sepolia
+ * has no DEX configured, so there the tool prints the wallet + gas status
+ * and stops with guidance instead of pretending to watch — set
+ * FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point it at a
+ * V2-style DEX.
  */
 
 const { ethers } = require('ethers');
@@ -81,7 +83,7 @@ async function main() {
     console.log('WATCHER NOT STARTED — no DEX is configured on this chain yet.');
     console.log('To watch for launches here, point the tool at a Uniswap V2-style');
     console.log('deployment with FACTORY_ADDRESS, ROUTER_ADDRESS and BASE_TOKEN_ADDRESS');
-    console.log('in .env, or run with --chain sepolia (V2 deployed there, and the burner has 0.05 ETH gas).');
+    console.log('in .env, or run with --chain arc-testnet (our AGNAmuse V2 is live there).');
     return;
   }
 

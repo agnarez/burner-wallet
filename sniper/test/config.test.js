@@ -12,9 +12,14 @@ test('defaults: Arc Testnet, dry-run on, burner signs, agent holds', () => {
   assert.equal(cfg.signerAddress, BURNER_WALLET_DEFAULT);
   assert.equal(cfg.agentAddress, AGENT_WALLET_DEFAULT);
   assert.equal(cfg.profitRecipient, AGENT_WALLET_DEFAULT);
-  assert.equal(cfg.factory, null);
-  assert.equal(cfg.router, null);
+  // Our AGNAmuse V2 on Arc (verified 2026-11-19): factory, router, and
+  // the USDC predeploy as base token, with the ERC-20 buy path.
+  assert.equal(cfg.factory, '0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d');
+  assert.equal(cfg.router, '0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7');
+  assert.equal(cfg.baseToken, '0x3600000000000000000000000000000000000000');
   assert.equal(cfg.baseSymbol, 'USDC');
+  assert.equal(cfg.baseDecimals, 6);
+  assert.equal(cfg.buyWithERC20, true);
   assert.equal(cfg.buyAmountNative, 0.01);
 });
 
@@ -27,11 +32,46 @@ test('sepolia: verified V2 deployment, WETH base', () => {
   assert.equal(cfg.baseSymbol, 'WETH');
 });
 
-test('robinhood-testnet: chain 46630, ETH base, no DEX yet', () => {
+test('robinhood-testnet: our AGNAmuse V2, WETH base, native buy path', () => {
   const cfg = loadConfig({ CHAIN: 'robinhood-testnet', PRIVATE_KEY: '' });
   assert.equal(cfg.chainId, 46630);
-  assert.equal(cfg.factory, null);
-  assert.equal(cfg.baseSymbol, 'ETH');
+  assert.equal(cfg.factory, '0xe9f116220486AB52b8D245aF3C19de5C025Adea8');
+  assert.equal(cfg.router, '0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58');
+  assert.equal(cfg.baseToken, '0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09');
+  assert.equal(cfg.baseSymbol, 'WETH');
+  assert.equal(cfg.baseDecimals, 18);
+  assert.equal(cfg.buyWithERC20, false);
+});
+
+test('litvm-testnet: our AGNAmuse V2, WETH base, native buy path', () => {
+  const cfg = loadConfig({ CHAIN: 'litvm-testnet', PRIVATE_KEY: '' });
+  assert.equal(cfg.chainId, 4441);
+  assert.equal(cfg.factory, '0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce');
+  assert.equal(cfg.router, '0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d');
+  assert.equal(cfg.baseToken, '0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6');
+  assert.equal(cfg.baseSymbol, 'WETH');
+  assert.equal(cfg.baseDecimals, 18);
+  assert.equal(cfg.buyWithERC20, false);
+});
+
+test('sepolia: native buy path (no ERC-20 flag)', () => {
+  const cfg = loadConfig({ CHAIN: 'sepolia', PRIVATE_KEY: '' });
+  assert.equal(cfg.buyWithERC20, false);
+  assert.equal(cfg.baseDecimals, 18);
+});
+
+test('DEX env overrides still win over the chain table', () => {
+  const cfg = loadConfig({
+    CHAIN: 'robinhood-testnet', PRIVATE_KEY: '',
+    FACTORY_ADDRESS: '0x1111111111111111111111111111111111111111',
+    ROUTER_ADDRESS: '0x2222222222222222222222222222222222222222',
+    BASE_TOKEN_ADDRESS: '0x3333333333333333333333333333333333333333',
+  });
+  assert.equal(cfg.factory, '0x1111111111111111111111111111111111111111');
+  assert.equal(cfg.router, '0x2222222222222222222222222222222222222222');
+  assert.equal(cfg.baseToken, '0x3333333333333333333333333333333333333333');
+  // The buy-path flag still comes from the chain, not the override.
+  assert.equal(cfg.buyWithERC20, false);
 });
 
 test('base-sepolia: no V2 at the known addresses', () => {

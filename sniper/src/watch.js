@@ -19,9 +19,10 @@
  */
 
 const { ethers } = require('ethers');
-const { shouldBuy, decideExit } = require('./strategy');
+const { shouldBuy, decideExit, formatDecimals } = require('./strategy');
 const {
-  factoryContract, pairContract, buildBuyTx, buildSellTx, getTokenPrice, execute,
+  factoryContract, pairContract, buildBuyTx, buildSellTx,
+  buildBuyTxERC20, buildSellTxERC20, getTokenPrice, execute,
 } = require('./swap');
 
 const POLL_MS = 15_000;
@@ -61,20 +62,40 @@ function watchNewPairs({ provider, wallet, cfg, walletAddress }) {
       const tokenLiquidityRaw = baseIs0 ? r1 : r0;
 
       const decision = shouldBuy({ token, baseToken: cfg.baseToken, baseLiquidityWei, tokenLiquidityRaw, cfg });
-      log(`[new pair] ${token} / ${cfg.baseSymbol}  pair=${pair}  base liq=${ethers.formatEther(baseLiquidityWei)} ${cfg.baseSymbol}`);
+      log(`[new pair] ${token} / ${cfg.baseSymbol}  pair=${pair}  base liq=${formatDecimals(baseLiquidityWei, cfg.baseDecimals ?? 18)} ${cfg.baseSymbol}`);
       if (!decision.buy) {
         log(`  skip: ${decision.reason}`);
         return;
       }
       log(`  snipe: ${decision.reason}`);
 
-      const { tx, quotedOut, minOut } = await buildBuyTx({ provider, cfg, token, walletAddress });
-      const result = await execute({ provider, wallet, cfg, tx, label: `buy ${token}` });
-      if (cfg.dryRun) {
-        log(`  [DRY-RUN] would buy ${cfg.buyAmountNative} ${cfg.baseSymbol} -> ~${ethers.formatEther(quotedOut)} tokens (min ${ethers.formatEther(minOut)})`);
-        log(`  [DRY-RUN] unsigned tx: to=${tx.to} value=${ethers.formatEther(tx.value ?? 0n)} ${cfg.baseSymbol} data=${String(tx.data).slice(0, 66)}…`);
+      // Arc Testnet buys with the ERC-20 path (approve + swapExactTokensForTokens);
+      // every other chain buys with the native path (swapExactETHForTokens).
+      let quotedOut;
+      if (cfg.buyWithERC20) {
+        const built = await buildBuyTxERC20({ provider, cfg, token, walletAddress });
+        quotedOut = built.quotedOut;
+        for (const tx of built.txs) {
+          const result = await execute({ provider, wallet, cfg, tx, label: `buy ${token}` });
+          if (cfg.dryRun) {
+            log(`  [DRY-RUN] would send tx to=${tx.to} value=${ethers.formatEther(tx.value ?? 0n)} ${cfg.nativeSymbol} data=${String(tx.data).slice(0, 66)}…`);
+          } else {
+            log(`  sent: tx ${result.hash}`);
+          }
+        }
+        if (cfg.dryRun) {
+          log(`  [DRY-RUN] would buy ${cfg.buyAmountNative} ${cfg.baseSymbol} -> ~${ethers.formatEther(quotedOut)} tokens (min ${ethers.formatEther(built.minOut)})`);
+        }
       } else {
-        log(`  bought: tx ${result.hash}`);
+        const { tx, quotedOut: q, minOut } = await buildBuyTx({ provider, cfg, token, walletAddress });
+        quotedOut = q;
+        const result = await execute({ provider, wallet, cfg, tx, label: `buy ${token}` });
+        if (cfg.dryRun) {
+          log(`  [DRY-RUN] would buy ${cfg.buyAmountNative} ${cfg.baseSymbol} -> ~${ethers.formatEther(quotedOut)} tokens (min ${ethers.formatEther(minOut)})`);
+          log(`  [DRY-RUN] unsigned tx: to=${tx.to} value=${ethers.formatEther(tx.value ?? 0n)} ${cfg.baseSymbol} data=${String(tx.data).slice(0, 66)}…`);
+        } else {
+          log(`  bought: tx ${result.hash}`);
+        }
       }
 
       // Entry price = native token per token, from the quote (dry-run or live alike).
@@ -102,11 +123,16 @@ function watchNewPairs({ provider, wallet, cfg, walletAddress }) {
           continue;
         }
         log(`[exit:${action}] ${token} price=${price} ${cfg.baseSymbol}/token pnl=${pnl.toFixed(1)}% — selling to ${cfg.profitRecipient}`);
-        const { txs, quotedOut } = await buildSellTx({ provider, cfg, token, walletAddress, percent: 100 });
-        for (const tx of txs) {
+        // Arc Testnet sells with the ERC-20 path (swapExactTokensForTokens);
+        // every other chain sells with the native path (swapExactTokensForETH).
+        const sellBuilt = cfg.buyWithERC20
+          ? await buildSellTxERC20({ provider, cfg, token, walletAddress, percent: 100 })
+          : await buildSellTx({ provider, cfg, token, walletAddress, percent: 100 });
+        const sellQuoted = sellBuilt.quotedOut;
+        for (const tx of sellBuilt.txs) {
           const result = await execute({ provider, wallet, cfg, tx, label: `sell ${token}` });
           if (cfg.dryRun) {
-            log(`  [DRY-RUN] would sell -> ~${ethers.formatEther(quotedOut)} ${cfg.baseSymbol} (tx to=${tx.to})`);
+            log(`  [DRY-RUN] would sell -> ~${ethers.formatUnits(sellQuoted, cfg.baseDecimals ?? 18)} ${cfg.baseSymbol} (tx to=${tx.to})`);
           } else {
             log(`  sold: tx ${result.hash}`);
           }

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   shouldBuy, pnlPct, decideExit, applySlippage, gasTooHigh,
-  parseNativeToWei, formatNative,
+  parseNativeToWei, formatNative, parseToDecimals, formatDecimals,
 } = require('../src/strategy');
 
 const WETH = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14';
@@ -56,6 +56,33 @@ test('shouldBuy: rejects a pair whose token is the base token itself', () => {
     token: WETH, baseToken: WETH,
     baseLiquidityWei: parseNativeToWei('1'), tokenLiquidityRaw: 1000000n, cfg: baseCfg(),
   }).buy, false);
+});
+
+test('shouldBuy: 6-decimal base (Arc USDC) compares in base units, not wei', () => {
+  // Arc: min 0.1 USDC = 100_000 raw units at 6 decimals.
+  const arcCfg = baseCfg({ baseSymbol: 'USDC', baseDecimals: 6 });
+  assert.equal(shouldBuy({
+    token: TOKEN, baseToken: '0x3600000000000000000000000000000000000000',
+    baseLiquidityWei: 100000n, tokenLiquidityRaw: 1000000n, cfg: arcCfg,
+  }).buy, true);
+  assert.equal(shouldBuy({
+    token: TOKEN, baseToken: '0x3600000000000000000000000000000000000000',
+    baseLiquidityWei: 50000n, tokenLiquidityRaw: 1000000n, cfg: arcCfg,
+  }).buy, false);
+  // Regression: the same raw amount at 18 decimals is dust and must fail.
+  assert.equal(shouldBuy({
+    token: TOKEN, baseToken: WETH,
+    baseLiquidityWei: 100000n, tokenLiquidityRaw: 1000000n, cfg: baseCfg(),
+  }).buy, false);
+});
+
+test('parseToDecimals / formatDecimals round-trip at 6 and 18 decimals', () => {
+  assert.equal(parseToDecimals('0.01', 6), 10000n);
+  assert.equal(parseToDecimals('1', 6), 1000000n);
+  assert.equal(parseToDecimals('0.01', 18), 10n ** 16n);
+  assert.equal(formatDecimals(10000n, 6), '0.01');
+  assert.equal(formatDecimals(64492214n, 6), '64.492214');
+  assert.equal(formatDecimals(0n, 6), '0');
 });
 
 test('decideExit: hold inside the band', () => {

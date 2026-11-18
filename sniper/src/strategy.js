@@ -26,31 +26,45 @@ function shouldBuy({ token, baseToken, baseLiquidityWei, tokenLiquidityRaw, cfg 
   if (baseLiquidityWei <= 0n || tokenLiquidityRaw <= 0n) {
     return { buy: false, reason: 'pair launched with zero liquidity on one side' };
   }
-  // Compare in native units without floats: minBaseLiquidity is a decimal
-  // number of native tokens, scaled to wei with 1e18 precision.
-  const minWei = parseNativeToWei(cfg.minBaseLiquidity);
-  if (baseLiquidityWei < minWei) {
+  // Compare in base-token units without floats: minBaseLiquidity is a
+  // decimal number of base tokens, scaled to the base token's decimals
+  // (18 for WETH chains, 6 for Arc's USDC predeploy). Comparing an
+  // 18-decimal minimum against a 6-decimal reserve would demand 1e12x
+  // too much liquidity, so the decimals come from cfg.baseDecimals.
+  const decimals = cfg.baseDecimals ?? 18;
+  const minBase = parseToDecimals(cfg.minBaseLiquidity, decimals);
+  if (baseLiquidityWei < minBase) {
     return {
       buy: false,
-      reason: `base liquidity too low (${formatNative(baseLiquidityWei)} < ${cfg.minBaseLiquidity} ${cfg.baseSymbol})`,
+      reason: `base liquidity too low (${formatDecimals(baseLiquidityWei, decimals)} < ${cfg.minBaseLiquidity} ${cfg.baseSymbol})`,
     };
   }
-  return { buy: true, reason: `base liquidity ${formatNative(baseLiquidityWei)} ${cfg.baseSymbol} >= ${cfg.minBaseLiquidity} ${cfg.baseSymbol}` };
+  return { buy: true, reason: `base liquidity ${formatDecimals(baseLiquidityWei, decimals)} ${cfg.baseSymbol} >= ${cfg.minBaseLiquidity} ${cfg.baseSymbol}` };
+}
+
+/** Parse a decimal token string/number to raw units at `decimals`, no float rounding. */
+function parseToDecimals(v, decimals) {
+  const s = String(v);
+  const [whole, frac = ''] = s.split('.');
+  const fracPadded = (frac + '0'.repeat(decimals)).slice(0, decimals);
+  return BigInt(whole || '0') * 10n ** BigInt(decimals) + BigInt(fracPadded || '0');
+}
+
+/** Format raw token units at `decimals` as a decimal string. */
+function formatDecimals(amount, decimals) {
+  const s = amount.toString().padStart(decimals + 1, '0');
+  const whole = s.slice(0, -decimals) || '0';
+  const frac = decimals === 0 ? '' : s.slice(-decimals).replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole;
 }
 
 /** Parse a decimal native-token string/number to wei (bigint), no float rounding. */
 function parseNativeToWei(v) {
-  const s = String(v);
-  const [whole, frac = ''] = s.split('.');
-  const fracPadded = (frac + '000000000000000000').slice(0, 18);
-  return BigInt(whole || '0') * 10n ** 18n + BigInt(fracPadded || '0');
+  return parseToDecimals(v, 18);
 }
 
 function formatNative(wei) {
-  const s = wei.toString().padStart(19, '0');
-  const whole = s.slice(0, -18) || '0';
-  const frac = s.slice(-18).replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole;
+  return formatDecimals(wei, 18);
 }
 
 /**
@@ -101,4 +115,4 @@ function gasTooHigh(gasPriceWei, maxGasGwei) {
   return gasPriceWei > BigInt(maxGasGwei) * 10n ** 9n;
 }
 
-module.exports = { shouldBuy, pnlPct, decideExit, applySlippage, gasTooHigh, parseNativeToWei, formatNative };
+module.exports = { shouldBuy, pnlPct, decideExit, applySlippage, gasTooHigh, parseNativeToWei, formatNative, parseToDecimals, formatDecimals };

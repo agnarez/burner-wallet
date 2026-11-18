@@ -19,27 +19,41 @@ Nothing in this tool ever asks for the agent wallet's key, because none
 exists. If a flow needs the agent wallet to move funds, that happens
 through `circle wallet ...`, not here.
 
-## Chains and gas — verified live 2026-11-18
+## Chains and gas — verified live 2026-11-19
 
 | Chain | Gas token | Burner | Agent wallet | DEX status |
 |---|---|---|---|---|
-| **Arc Testnet** (default, primary) | USDC (native) | 80 USDC | 20 USDC | **No V2-style DEX** at the checked addresses (canonical + Eco-docs Arc addresses — no code). Watcher stays off until a DEX is configured. |
-| Robinhood Chain testnet | testnet ETH | 0.01005 ETH | — (doesn't exist here) | **No V2 on testnet** at the Uniswap-listed addresses (mainnet-only deployment). |
-| Sepolia | ETH | **0.05 ETH** | 0 ETH | Uniswap V2 **is** deployed — Sepolia-specific addresses (factory `0xF62c…`, router `0xeE56…`, 18,772 pairs, verified live). The burner has gas — funded by agnarez himself ([tx](https://sepolia.etherscan.io/tx/0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035)) — so Sepolia is a usable live testnet target alongside Arc Testnet. |
+| **Arc Testnet** (default, primary) | USDC (native) | 93.68 USDC | 100 USDC | **AGNAmuse V2 — our own deployment** (factory `0x87125a…`, router `0x96ec1B…`). AGNA/USDC pool `0xba3746…` (359.964T AGNA + 64.49 USDC). Buys use the **ERC-20 path** — see below. |
+| Robinhood Chain testnet | testnet ETH | ~0.0054 ETH | — (doesn't exist here) | **AGNAmuse V2 — our own deployment** (factory `0xe9f116…`, router `0x4524D5…`, WETH9 `0xf04aD6…`). AGNA/WETH9 pool `0x699d97…` (399.96T AGNA + 0.002006 ETH). Native buy path. |
+| Sepolia | ETH | **~0.0298 ETH** | 0 ETH | Uniswap V2 **is** deployed — Sepolia-specific addresses (factory `0xF62c…`, router `0xeE56…`, 18,772 pairs, verified live). The burner has gas — funded by agnarez himself ([tx](https://sepolia.etherscan.io/tx/0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035)) — so Sepolia is a usable live testnet target alongside Arc Testnet. |
 | Base Sepolia | ETH | 0 ETH | 0 ETH | **No V2** at the known addresses (factory has no code; the contract at the mainnet router address isn't a V2 router). No gas either. |
-| LitVM testnet ("LiteForge") | zkLTC | **0.05 zkLTC** (claimed 2026-11-18, [tx](https://explorer.testnet.liteforge.zeeve.net/tx/0xa40ea16a88a550c83031b0c7dce297648d080d1547bd0e82663b48a75ca2cf23)) | 0 zkLTC | **No V2 verified** on LitVM yet — config only until a DEX is found. Burner has gas now. |
+| LitVM testnet ("LiteForge") | zkLTC | **~0.0298 zkLTC** (claimed 2026-11-18, [tx](https://explorer.testnet.liteforge.zeeve.net/tx/0xa40ea16a88a550c83031b0c7dce297648d080d1547bd0e82663b48a75ca2cf23)) | 0 zkLTC | **AGNAmuse V2 — our own deployment** (factory `0x4AcDba…`, router `0x87125a…`, WETH9 `0x774eF4…`). AGNA/WETH9 pool `0xE887Aa…` (399.96T AGNA + 0.020139 zkLTC). Native buy path. |
 
 Balances only grow from here: the faucet job tops both wallets up with 20
 USDC per chain every 2 hours. The Sepolia / Base Sepolia gas gap is
-partial: the burner holds 0.05 ETH on Sepolia (verified live — enough for
+partial: the burner holds ~0.0298 ETH on Sepolia (verified live — enough for
 testnet trades), but 0 ETH on Base Sepolia, and the agent wallet holds 0
 ETH on both. The Circle faucet gives USDC, not ETH. This tool does **not**
 try to obtain ETH gas itself. If ETH gas is ever funded on Base Sepolia,
 point the tool at a V2-style deployment there first — none is known.
 
 On Arc, USDC is the native gas token: native balances are 18-decimal
-(80 USDC shows as `80e18`), while ERC-20 USDC transfer amounts are
-6-decimal. Buy sizes in this tool are in native units.
+(93.68 USDC shows as `93.68e18`), while ERC-20 USDC transfer amounts are
+6-decimal. Buy sizes in this tool are in base-token units.
+
+### Arc Testnet buys use the ERC-20 path — read this
+
+On Arc, the AGNA pool pairs AGNA against the **USDC predeploy**
+(`0x3600…0000`), not against WETH9 (`0x4AcDba…`) — `getPair(AGNA, WETH9)`
+is the zero address. The predeploy **is** the native token's ERC-20 form:
+`balanceOf(burner)` on it equals the native balance. So on Arc the sniper
+buys with `approve` + `swapExactTokensForTokens` (path
+`[predeploy, token]`) and sells the same way (path `[token, predeploy]`),
+with base amounts in **6 decimals**. The native path
+(`swapExactETHForTokens`, path starting at `router.WETH()`) cannot buy the
+AGNA pair and is never used on Arc. Robinhood, LitVM and Sepolia keep the
+native path. Quotes are pre-tax: $AGNA takes 5% on buys/sells, so a buyer
+receives ~95% of the quoted amount.
 
 ## Setup
 
@@ -67,9 +81,9 @@ npm run manual -- sell  --token 0x... [--percent 100]
 npm run manual -- cycle --token 0x... [--amount 0.01]
 ```
 
-On Arc Testnet / Robinhood testnet / LitVM testnet today, `npm start` prints the wallet +
-gas status and stops with guidance, because no DEX is configured there
-yet. To point it at a V2-style deployment when one appears, set in `.env`:
+On Base Sepolia today, `npm start` prints the wallet + gas status and stops
+with guidance, because no DEX is configured there yet. To point it at a
+V2-style deployment when one appears, set in `.env`:
 
 ```
 FACTORY_ADDRESS=0x...
@@ -81,13 +95,13 @@ BASE_TOKEN_ADDRESS=0x...   # the token pairs launch against (e.g. wrapped USDC)
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CHAIN` | `arc-testnet` | `arc-testnet` / `robinhood-testnet` / `sepolia` / `base-sepolia` |
+| `CHAIN` | `arc-testnet` | `arc-testnet` / `robinhood-testnet` / `sepolia` / `base-sepolia` / `litvm-testnet` |
 | `PRIVATE_KEY` | — | Burner wallet key. Empty = dry-run only. |
 | `BURNER_WALLET_ADDRESS` | `0x6F31…` | Signer. The tool refuses a key that belongs to another address. |
 | `AGENT_WALLET_ADDRESS` | `0xd305…` | Holder. Never signs. |
 | `PROFIT_RECIPIENT` | agent wallet | Where sell proceeds go. |
 | `DRY_RUN` | `true` | `false` to actually trade. |
-| `BUY_AMOUNT_NATIVE` | `0.01` | Buy size per snipe, in native token (USDC on Arc, ETH elsewhere). |
+| `BUY_AMOUNT_NATIVE` | `0.01` | Buy size per snipe, in base-token units (USDC on Arc, ETH on Robinhood/Sepolia, zkLTC on LitVM). |
 | `SLIPPAGE_BPS` | `500` | Max slippage, basis points (500 = 5%). |
 | `MAX_GAS_GWEI` | `100` | Never pay more than this; above it, the buy is skipped. |
 | `TAKE_PROFIT_PCT` | `50` | Sell at +50%. |
@@ -106,12 +120,15 @@ when the burner holds no gas on the selected chain.
 npm test
 ```
 
-- `test/strategy.test.js` — unit tests for the buy/sell decision logic.
-- `test/config.test.js` — defaults, both wallets, validation.
+- `test/strategy.test.js` — unit tests for the buy/sell decision logic,
+  including the decimal-aware liquidity check (Arc's 6-decimal USDC).
+- `test/config.test.js` — defaults, both wallets, validation, and the
+  per-chain DEX deployments.
 - `test/dryrun.test.js` — live checks against public testnet RPCs
   (read-only, nothing is sent): chain IDs, both wallets' Arc balances,
-  Robinhood gas, Sepolia V2 deployment, and a dry-run buy quote + unsigned
-  transaction build on Sepolia.
+  Robinhood/LitVM gas, all three AGNAmuse V2 deployments with
+  `getPair` checks, and dry-run buy quotes + unsigned transaction builds
+  on Arc (ERC-20 path), Robinhood and LitVM (native path), plus Sepolia.
 
 ## Honest risks — read before going live
 

@@ -25,6 +25,7 @@ const ROUTER_ABI = [
   'function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)',
   'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
   'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
+  'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
 ];
 
 const PAIR_ABI = [
@@ -67,7 +68,7 @@ function requireDex(cfg) {
   if (!cfg.router || !cfg.baseToken) {
     throw new Error(
       `No DEX configured for ${cfg.chainName}. ${cfg.dexNote || ''} ` +
-      'Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS, or pick a chain with a known deployment (sepolia, base-sepolia).',
+      'Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS, or pick a chain with a known deployment (sepolia).',
     );
   }
 }
@@ -89,6 +90,37 @@ async function buildBuyTx({ provider, cfg, token, walletAddress }) {
     minOut, path, walletAddress, deadline(), { value: amountIn },
   );
   return { tx, quotedOut, minOut };
+}
+
+/**
+ * Quote + build unsigned buy transactions on an ERC-20 base chain
+ * (Arc Testnet only). The base token is the chain's native token in
+ * ERC-20 form (Arc's USDC predeploy, 6 decimals), so the buy pays in
+ * that ERC-20 instead of native value: approve the router first, then
+ * swapExactTokensForTokens with path [baseToken, token]. The bought
+ * tokens go to the signer (the burner wallet). No native value is sent.
+ * @returns {{txs: object[], quotedOut: bigint, minOut: bigint}}
+ */
+async function buildBuyTxERC20({ provider, cfg, token, walletAddress }) {
+  requireDex(cfg);
+  const router = routerContract(cfg.router, provider);
+  const baseC = tokenContract(cfg.baseToken, provider);
+  // Base amounts are in the base token's decimals (6 on Arc), not wei.
+  const amountIn = ethers.parseUnits(String(cfg.buyAmountNative), cfg.baseDecimals ?? 18);
+  const path = [cfg.baseToken, token];
+  const amounts = await router.getAmountsOut(amountIn, path);
+  const quotedOut = amounts[amounts.length - 1];
+  const minOut = applySlippage(quotedOut, cfg.slippageBps);
+
+  const txs = [];
+  const allowance = await baseC.allowance(walletAddress, cfg.router);
+  if (allowance < amountIn) {
+    txs.push(await baseC.approve.populateTransaction(cfg.router, amountIn));
+  }
+  txs.push(await router.swapExactTokensForTokens.populateTransaction(
+    amountIn, minOut, path, walletAddress, deadline(),
+  ));
+  return { txs, quotedOut, minOut };
 }
 
 /**
@@ -117,7 +149,41 @@ async function buildSellTx({ provider, cfg, token, walletAddress, percent = 100 
   return { txs, quotedOut, minOut, tokenBalance: balance };
 }
 
-/** Current price of 1 token in native token units (as a float), via the router quote. */
+/**
+ * Quote + build unsigned sell transactions on an ERC-20 base chain
+ * (Arc Testnet only). swapExactTokensForETH would fail here: it expects
+ * path[last] to be the router's WETH, but the base token is the USDC
+ * predeploy, not WETH. So the sell goes token -> base token with
+ * swapExactTokensForTokens, and the proceeds arrive as base-token
+ * ERC-20 at cfg.profitRecipient (default: the agent wallet, which
+ * holds Arc USDC natively — the predeploy IS the native token's
+ * ERC-20 form, so the proceeds land in its usable balance).
+ * @returns {{txs: object[], quotedOut: bigint, minOut: bigint, tokenBalance: bigint}}
+ */
+async function buildSellTxERC20({ provider, cfg, token, walletAddress, percent = 100 }) {
+  requireDex(cfg);
+  const tokenC = tokenContract(token, provider);
+  const router = routerContract(cfg.router, provider);
+  const balance = await tokenC.balanceOf(walletAddress);
+  const amountIn = (balance * BigInt(percent)) / 100n;
+  if (amountIn <= 0n) throw new Error(`Nothing to sell: token balance is ${balance}`);
+  const path = [token, cfg.baseToken];
+  const amounts = await router.getAmountsOut(amountIn, path);
+  const quotedOut = amounts[amounts.length - 1];
+  const minOut = applySlippage(quotedOut, cfg.slippageBps);
+
+  const txs = [];
+  const allowance = await tokenC.allowance(walletAddress, cfg.router);
+  if (allowance < amountIn) {
+    txs.push(await tokenC.approve.populateTransaction(cfg.router, amountIn));
+  }
+  txs.push(await router.swapExactTokensForTokens.populateTransaction(
+    amountIn, minOut, path, cfg.profitRecipient, deadline(),
+  ));
+  return { txs, quotedOut, minOut, tokenBalance: balance };
+}
+
+/** Current price of 1 token in base-token units (as a float), via the router quote. */
 async function getTokenPrice({ provider, cfg, token }) {
   requireDex(cfg);
   const tokenC = tokenContract(token, provider);
@@ -125,7 +191,10 @@ async function getTokenPrice({ provider, cfg, token }) {
   const oneToken = 10n ** BigInt(decimals);
   const router = routerContract(cfg.router, provider);
   const amounts = await router.getAmountsOut(oneToken, [token, cfg.baseToken]);
-  return Number(ethers.formatEther(amounts[amounts.length - 1]));
+  // The quote is in base-token units: 18 decimals on WETH chains,
+  // 6 on Arc (USDC predeploy). formatEther would understate an Arc
+  // price by 1e12, so use the base token's decimals.
+  return Number(ethers.formatUnits(amounts[amounts.length - 1], cfg.baseDecimals ?? 18));
 }
 
 /**
@@ -151,5 +220,5 @@ async function execute({ provider, wallet, cfg, tx, label }) {
 module.exports = {
   FACTORY_ABI, ROUTER_ABI, PAIR_ABI, ERC20_ABI,
   routerContract, factoryContract, pairContract, tokenContract,
-  buildBuyTx, buildSellTx, getTokenPrice, execute,
+  buildBuyTx, buildSellTx, buildBuyTxERC20, buildSellTxERC20, getTokenPrice, execute,
 };
