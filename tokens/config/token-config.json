@@ -32,8 +32,16 @@
       "notes": "LitVM testnet (\"LiteForge\"), Litecoin's EVM rollup, chain 4441, verified 2026-11-18. Burner holds 0.05 zkLTC (claimed 2026-11-18, verified via RPC), so the deploy script allows this chain for the burner; agent wallet holds none. No Uniswap V2 router verified on LitVM yet \u2014 deploy with router empty; tax + burn work, buyback/LP activate via setRouter() once a verified testnet router exists. Quote path is native zkLTC.",
       "quoteSymbol": "zkLTC",
       "quoteToken": "",
-      "router": "",
-      "rpc": "https://rpc.testnet.liteforge.zeeve.net/"
+      "router": "0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d",
+      "factory": "0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+      "weth": "0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6",
+      "rpc": "https://rpc.testnet.liteforge.zeeve.net/",
+      "v3factory": "0x597c754bc605adA08E43E318956Abda35CbF30E0",
+      "v3PositionManager": "0x38893923391A77185392Ff7986EC2f78A28D3AE4",
+      "v3SwapRouter": "0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09",
+      "v4PoolManager": "0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58",
+      "v4PositionManager": "0x2aa1c1ECDfB3b41fafEb0505BCE3ee32b5F7bbd0",
+      "v4UniversalRouter": "0x953F4Bf0C6613f22EA250EdB0905c3207eb820f7"
     },
     "46630": {
       "agentWallet": null,
@@ -49,8 +57,16 @@
       "notes": "Deployable (burner has gas) but no Uniswap V2 router verified on testnet \u2014 the mainnet router/factory addresses hold no code here (checked live 2026-11-18). Deploy with router empty; setRouter() later once a testnet router is verified on the explorer.",
       "quoteSymbol": "ETH",
       "quoteToken": "",
-      "router": "",
-      "rpc": "https://rpc.testnet.chain.robinhood.com"
+      "router": "0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58",
+      "factory": "0xe9f116220486AB52b8D245aF3C19de5C025Adea8",
+      "weth": "0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09",
+      "rpc": "https://rpc.testnet.chain.robinhood.com",
+      "v3factory": "0x953F4Bf0C6613f22EA250EdB0905c3207eb820f7",
+      "v3PositionManager": "0xC49409E0EC662d53659d0C2969DEAD18C83D9BF9",
+      "v3SwapRouter": "0x11943Ab128300Aca38e5021532b1E25F55DBdfa5",
+      "v4PoolManager": "0xf0a20cC4251fd3121fFA44333530ceEDDEE0BB3F",
+      "v4PositionManager": "0xC8111B0d35EE45AbFeB1b29189114E02709b6bA4",
+      "v4UniversalRouter": "0xb38D74708E443bB7C79FD3030e8063482161bE4b"
     },
     "5042002": {
       "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",
@@ -65,8 +81,16 @@
       "notes": "PRIMARY deploy chain. No Uniswap V2 router verified on Arc Testnet \u2014 the mainnet router/factory addresses hold no code here (checked live 2026-11-18). Deploy with router empty; tax + burn work, buyback/LP activate via setRouter() once a verified testnet router exists. Quote path is ERC-20 USDC because Arc's router WETH paths revert (WETH wired to UnsupportedProtocol).",
       "quoteSymbol": "USDC",
       "quoteToken": "0x3600000000000000000000000000000000000000",
-      "router": "",
-      "rpc": "https://arc-testnet-rpc.publicnode.com"
+      "router": "0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7",
+      "factory": "0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d",
+      "weth": "0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+      "rpc": "https://arc-testnet-rpc.publicnode.com",
+      "v3factory": "0x25fbCB5E8f890656812AcD81f2772631230B14ec",
+      "v3PositionManager": "0xe9f116220486AB52b8D245aF3C19de5C025Adea8",
+      "v3SwapRouter": "0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58",
+      "v4PoolManager": "0x2aa1c1ECDfB3b41fafEb0505BCE3ee32b5F7bbd0",
+      "v4PositionManager": "0x025628BEC834e830BF02c12fAa3127B5457d0A73",
+      "v4UniversalRouter": "0x722f0b6864dF8A549865C72723e7Aa06Ee66B056"
     },
     "84532": {
       "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",

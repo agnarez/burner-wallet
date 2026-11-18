@@ -1,0 +1,51 @@
+{
+  "name": "AGNAmuse",
+  "normalized": "agnamuse",
+  "owner": "0x6F311641923246e7f4fE2F1F679c75f4DE107621",
+  "mints": {
+    "Sepolia": {
+      "chain": "Sepolia",
+      "chainId": 11155111,
+      "nft": "0xA6900035659C104e289164d045df9B01dc6FA1c9",
+      "tokenId": "1",
+      "name": "agnamuse",
+      "primaryName": "agnamuse",
+      "mintTx": "0xd4f27ee2a14440deef5a611fdf520044f7b17b5cfbf3386ba44c4e86785dd771",
+      "setPrimaryTx": "0x8dd31dd3064b5029fb6b6dda0d8b58a2a171e53dea88f7da2225ad11fe568782",
+      "verified": true
+    },
+    "Arc": {
+      "chain": "Arc",
+      "chainId": 5042002,
+      "nft": "0xA69000180db96f466aD8F5C7E6D932A1C10d709b",
+      "tokenId": "1",
+      "name": "agnamuse",
+      "primaryName": "agnamuse",
+      "mintTx": "0x9f5924b286f14d8b1a05c46b6f6dbb12ea61cf2a4e514102ffe93b7d9f0e5cb0",
+      "setPrimaryTx": "0x26c35fe51a898dac6c9108e1552cec8a00f219179fd1404aeb00c36fa989e0eb",
+      "verified": true
+    },
+    "Robinhood": {
+      "chain": "Robinhood",
+      "chainId": 46630,
+      "nft": "0xA69000506Aefc50Afc8F37fC8786c65CcA663075",
+      "tokenId": "1",
+      "name": "agnamuse",
+      "primaryName": "agnamuse",
+      "mintTx": "0xcdffc363bebd3aaf29948f1e3e2e5b5b859050b60fdab6460b2f0d8283d68eb3",
+      "setPrimaryTx": "0x4448ec9625613a8d94bcfc4607d299ff6cfa7e409bd44efb3de4599baf9226ab",
+      "verified": true
+    },
+    "LitVM": {
+      "chain": "LitVM",
+      "chainId": 4441,
+      "nft": "0xA6900077eCf0E876197E2dE1d8De009Db08eA475",
+      "tokenId": "1",
+      "name": "agnamuse",
+      "primaryName": "agnamuse",
+      "mintTx": "0x5db4115bfe93126e4e73adb00e223f24ea3e470b6c8a47217a080cb8d215ea65",
+      "setPrimaryTx": "0xc4a0c92007e0e27b9fa941b370aca4f78dae90c6ee9bfa58ac80e0009c0a5393",
+      "verified": true
+    }
+  }
+}
