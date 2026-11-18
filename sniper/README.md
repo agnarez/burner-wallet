@@ -130,6 +130,38 @@ npm test
   `getPair` checks, and dry-run buy quotes + unsigned transaction builds
   on Arc (ERC-20 path), Robinhood and LitVM (native path), plus Sepolia.
 
+## Volume runs (`volume.cjs`) — spam sniper, fixed-size buy/sell round trips
+
+Deliberate wash-volume on our OWN AGNAmuse V2 pools (testnet only): 500
+round trips = 1,000 trading txns per chain, 4,000 total, then 50 round
+trips per chain per hour on a schedule. Fixed sizes, no TP/SL strategy.
+
+```bash
+node volume.cjs --chain sepolia              # 500 rounds (default)
+node volume.cjs --chain all --rounds 50      # 50 more rounds per chain
+node volume.cjs --chain all --resume-only    # resume in-flight batches only
+node volume.cjs --chain sepolia --smoke      # quote + build only, send nothing
+node volume.cjs --chain sepolia --verify     # poll receipts, print final summary
+```
+
+Trade sizes: Sepolia 0.00005 ETH, Arc 0.01 USDC (ERC-20 path),
+Robinhood 0.000005 ETH (thinnest pool — do NOT raise), LitVM 0.00005 zkLTC.
+Sells are 93% of the quoted buy output (not 98%: the 5% buy tax means the
+buyer only receives ~95% of the quote, so 98% would drain the burner's
+AGNA balance after ~140 round trips; 93% is ~98% of what was received).
+Sell proceeds return to the burner so the loop is self-funding.
+Buy minOut 95% of quote; sell minOut 90% of the sell quote (the sell's
+input is taxed 5% before the pair sees it). Approves are one-time setup,
+not counted in the 1,000. State lives in
+`~/workspace/goals/burner-wallet/hidden_files/txn-volume-sniper.json`
+(checkpoint every 25 rounds); per-chain lock files keep concurrent runs
+out, and a stale lock (dead PID or heartbeat > 10 min) is cleared.
+A resume cron re-runs `--chain all --resume-only` every 5 minutes —
+batches resume from their stored target, never inflated. Safety brakes
+stop a chain (never forced): gas balance under Sepolia 0.005 ETH /
+RH 0.001 ETH / LitVM 0.005 zkLTC / Arc 5 USDC, pool reserves moved > 15%,
+or the same nonce failing 3 times.
+
 ## Honest risks — read before going live
 
 - **Gas costs.** Every trade costs gas, win or lose. On mainnet that is
