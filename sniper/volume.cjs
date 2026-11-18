@@ -153,9 +153,31 @@ function loadPrivateKey() {
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch { return { version: 1, chains: {} }; }
 }
+// Chains this process modified (only these are merged back on save —
+// other chains' entries on disk belong to sibling processes and must
+// never be clobbered by our stale in-memory copy).
+const DIRTY_CHAINS = new Set();
 function saveState(s) {
   fs.mkdirSync(STATE_DIR, { recursive: true });
-  fs.writeFileSync(STATE_FILE, JSON.stringify(s, null, 2));
+  // Serialize writers across processes: mkdir is atomic.
+  const lockDir = STATE_FILE + '.writelock';
+  const start = Date.now();
+  while (true) {
+    try { fs.mkdirSync(lockDir); break; } catch {
+      if (Date.now() - start > 10000) break; // proceed best-effort
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+  try {
+    let disk = { version: 1, chains: {} };
+    try { disk = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch { /* missing/corrupt */ }
+    for (const k of DIRTY_CHAINS) { if (s.chains[k]) disk.chains[k] = s.chains[k]; }
+    const tmp = `${STATE_FILE}.tmp.${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify(disk, null, 2));
+    fs.renameSync(tmp, STATE_FILE);
+  } finally {
+    try { fs.rmdirSync(lockDir); } catch { /* ignore */ }
+  }
 }
 function chainState(state, key) {
   if (!state.chains[key]) {
@@ -165,7 +187,7 @@ function chainState(state, key) {
       batchStart: null, batchTarget: null,
       hashes: [], tradeHashes: [], firstBuyHash: null, firstSellHash: null,
       lastBuyHash: null, lastSellHash: null,
-      failures: [], fillers: [], status: 'new', stopReason: null,
+      failures: [], fillers: [], status: 'new', stopReason: null, lastError: null, errorCount: 0,
       gasSpentWei: '0', updatedAt: null,
     };
   }
@@ -249,6 +271,14 @@ async function pollReceipts(provider, hashes, { timeoutMs = 600000, batchSize = 
   return { results, unmined: [...pending] };
 }
 
+async function withRetry(fn, label, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); } catch (e) { lastErr = e; await sleep(1000 * (i + 1)); }
+  }
+  throw new Error(`${label} failed after ${attempts} attempts: ${lastErr.shortMessage || lastErr.message}`);
+}
+
 async function sendWithRetry(wallet, tx, label) {
   let lastErr;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -315,6 +345,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
   if (!lock) { log(`[${chainKey}] another instance holds the lock — exiting`); return { chain: chainKey, skipped: true }; }
   const state = loadState();
   const cs = chainState(state, chainKey);
+  DIRTY_CHAINS.add(chainKey);
   try {
     if (cs.status === 'stopped') { log(`[${chainKey}] previously stopped: ${cs.stopReason} — not auto-resuming a stopped chain`); return { chain: chainKey, stopped: true, reason: cs.stopReason }; }
 
@@ -345,7 +376,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     if (!cs.approvesDone) {
       const needAgna = (await agnaC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
       const needBase = cfg.buyWithERC20 && (await baseC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
-      const gasPrice = await fetchGasPrice(provider, cfg);
+      const gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
       if (needAgna) {
         const tx = await agnaC.approve.populateTransaction(cfg.router, ethers.MaxUint256);
         const sent = await sendWithRetry(wallet, { ...tx, gasPrice, nonce: cs.nextNonce }, `${chainKey} approve AGNA`);
@@ -378,7 +409,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       const pendingNonce = await provider.getTransactionCount(BURNER, 'pending');
       if (pendingNonce < cs.nextNonce) {
         log(`[${chainKey}] gap detected: node pending nonce=${pendingNonce}, checkpoint nextNonce=${cs.nextNonce} — filling ${cs.nextNonce - pendingNonce} nonce(s)`);
-        const gasPrice = await fetchGasPrice(provider, cfg);
+        const gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
         for (let n = pendingNonce; n < cs.nextNonce; n++) {
           const sent = await sendWithRetry(wallet, { to: BURNER, value: 0n, gasLimit: 21000n, gasPrice, nonce: n }, `${chainKey} gap-fill nonce ${n}`);
           await sent.wait();
@@ -395,14 +426,14 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     // Gas limits: estimate once from the first round's txs, reuse after.
     let buyGasLimit = null;
     let sellGasLimit = null;
-    let gasPrice = await fetchGasPrice(provider, cfg);
+    let gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
 
     const checkBrakes = async () => {
-      const bal = await provider.getBalance(BURNER);
+      const bal = await withRetry(() => provider.getBalance(BURNER), `${chainKey} gas balance`);
       if (bal < GAS_BRAKE[chainKey]) {
         throw new Error(`BRAKE: gas balance ${ethers.formatEther(bal)} under floor ${ethers.formatEther(GAS_BRAKE[chainKey])}`);
       }
-      const [r0, r1] = await pairC.getReserves();
+      const [r0, r1] = await withRetry(() => pairC.getReserves(), `${chainKey} reserves`);
       const b0 = BigInt(cs.baseline.reserve0);
       const b1 = BigInt(cs.baseline.reserve1);
       const move0 = Number((r0 > b0 ? (r0 - b0) * 10000n / b0 : (b0 - r0) * 10000n / b0)) / 100;
@@ -415,17 +446,17 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     while (cs.roundsDone < cs.batchTarget) {
       if (cs.roundsDone % CHECKPOINT_EVERY === 0) {
         await checkBrakes();
-        gasPrice = await fetchGasPrice(provider, cfg);
+        gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
       }
       heartbeatLock(chainKey);
       const round = cs.roundsDone;
 
       // Quote buy (fresh reserves every round).
-      const amounts = await router.getAmountsOut(amountIn, [cfg.baseToken, agnaAddr]);
+      const amounts = await withRetry(() => router.getAmountsOut(amountIn, [cfg.baseToken, agnaAddr]), `${chainKey} buy quote`);
       const quotedOut = amounts[amounts.length - 1];
       const buyMinOut = applySlippage(quotedOut, BUY_SLIPPAGE_BPS);
       const sellAmount = (quotedOut * BigInt(SELL_OF_QUOTE_BPS)) / 10000n;
-      const sellAmounts = await router.getAmountsOut(sellAmount, [agnaAddr, cfg.baseToken]);
+      const sellAmounts = await withRetry(() => router.getAmountsOut(sellAmount, [agnaAddr, cfg.baseToken]), `${chainKey} sell quote`);
       const sellQuoted = sellAmounts[sellAmounts.length - 1];
       const sellMinOut = applySlippage(sellQuoted, SELL_SLIPPAGE_BPS);
 
@@ -440,8 +471,8 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
         sellTx = await router.swapExactTokensForETH.populateTransaction(sellAmount, sellMinOut, [agnaAddr, cfg.baseToken], BURNER, deadline());
       }
       if (buyGasLimit === null) {
-        try { buyGasLimit = (await provider.estimateGas({ ...buyTx, from: BURNER })) * 120n / 100n; } catch { buyGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
-        try { sellGasLimit = (await provider.estimateGas({ ...sellTx, from: BURNER })) * 120n / 100n; } catch { sellGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
+        try { buyGasLimit = (await withRetry(() => provider.estimateGas({ ...buyTx, from: BURNER }), `${chainKey} buy gas estimate`)) * 120n / 100n; } catch { buyGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
+        try { sellGasLimit = (await withRetry(() => provider.estimateGas({ ...sellTx, from: BURNER }), `${chainKey} sell gas estimate`)) * 120n / 100n; } catch { sellGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
         log(`[${chainKey}] gas limits buy=${buyGasLimit} sell=${sellGasLimit}`);
       }
 
@@ -460,6 +491,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       cs.roundsDone += 1;
       if (cs.roundsDone % CHECKPOINT_EVERY === 0 || cs.roundsDone === cs.batchTarget) {
         cs.updatedAt = new Date().toISOString();
+        cs.errorCount = 0; // healthy progress — transient errors don't accumulate
         saveState(state);
         log(`[${chainKey}] batch ${cs.roundsDone - cs.batchStart}/${cs.batchTarget - cs.batchStart} (cumulative ${cs.roundsDone}), txns=${cs.txnsSubmitted}, nextNonce=${cs.nextNonce}`);
       }
@@ -487,12 +519,29 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
   } catch (e) {
     const state2 = loadState();
     const cs2 = chainState(state2, chainKey);
-    cs2.status = 'stopped';
-    cs2.stopReason = e.message;
+    DIRTY_CHAINS.add(chainKey);
+    const msg = e.message || String(e);
+    if (msg.startsWith('BRAKE:')) {
+      // Deliberate safety stop — terminal, never auto-resumed.
+      cs2.status = 'stopped';
+      cs2.stopReason = msg;
+    } else {
+      // Transient error (RPC drop, socket hang up, ...) — leave the
+      // batch resumable; only stop after 5 consecutive failed runs.
+      cs2.errorCount = (cs2.errorCount || 0) + 1;
+      cs2.lastError = msg;
+      if (cs2.errorCount >= 5) {
+        cs2.status = 'stopped';
+        cs2.stopReason = `repeated errors (${cs2.errorCount}x, last: ${msg})`;
+      } else {
+        cs2.status = 'running';
+        cs2.stopReason = null;
+      }
+    }
     cs2.updatedAt = new Date().toISOString();
     saveState(state2);
-    log(`[${chainKey}] STOPPED: ${e.message}`);
-    return { chain: chainKey, stopped: true, reason: e.message };
+    log(`[${chainKey}] ${cs2.status === 'stopped' ? 'STOPPED' : 'ERROR (will resume)'}: ${msg}`);
+    return { chain: chainKey, stopped: cs2.status === 'stopped', reason: msg };
   } finally {
     releaseLock(chainKey);
   }
