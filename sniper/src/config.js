@@ -103,7 +103,15 @@ const CHAINS = {
   sepolia: {
     name: 'Sepolia',
     chainId: 11155111,
-    rpc: 'https://ethereum-sepolia-rpc.publicnode.com',
+    // Tenderly public gateway (single node). publicnode is load-balanced
+    // and its backends disagree about the mempool: on 2026-11-19 one
+    // backend reported pendingNonce=134 while ~72 txns (nonces 134-205)
+    // sat unmined in another node's mempool, so a resume at nonce 134
+    // failed with "nonce has already been used". Tenderly gives one
+    // consistent mempool view (verified: three identical pending-nonce
+    // reads, 206/206/206). If Tenderly ever rate-limits, fall back to
+    // the publicnode URL.
+    rpc: 'https://sepolia.gateway.tenderly.co',
     // Uniswap V2 deployment for Sepolia, per developers.uniswap.org —
     // NOT the mainnet canonical addresses. Verified live 2026-11-18:
     // factory has code, allPairsLength = 18,772; router WETH() returns

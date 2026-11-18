@@ -90,7 +90,12 @@ const TRADE_SIZE = {
   'litvm-testnet': '0.00005',
 };
 const GAS_FLOOR_GWEI = {
-  sepolia: '0.000000017',
+  // Sepolia was 17 wei (0.000000017 gwei). On 2026-11-19 that left ~72 txns
+  // stuck unmined in a mempool (base fee ~16 wei; a 17-wei legacy txn is
+  // barely includable and gets evicted/deprioritised). Raised to 0.01 gwei
+  // (~600,000x the base fee): the remaining ~880 Sepolia txns cost only
+  // ~0.0015 ETH at this price, and the txns can no longer be evicted.
+  sepolia: '0.01',
   'arc-testnet': '31.625',
   'robinhood-testnet': '0.01',
   'litvm-testnet': '0.01',
