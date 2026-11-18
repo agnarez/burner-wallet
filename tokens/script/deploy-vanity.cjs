@@ -133,6 +133,15 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const chainId = args.chainId || Number(process.env.CHAIN_ID || "11155111");
   if (chainId === MAINNET_CHAIN_ID) fail("refusing to deploy on mainnet (chain 1)");
+
+  // Retry overrides (Sepolia 2026-11-18: the token deploy ran out of gas
+  // because ethers' estimate (809k) was far below the real cost (~2.37M).
+  // FACTORY_ADDRESS reuses an already-deployed factory instead of deploying
+  // a second one; GAS_LIMIT is passed to every send so a bad estimate
+  // cannot starve a deploy again.
+  const factoryOverride = process.env.FACTORY_ADDRESS || null;
+  const gasLimit = process.env.GAS_LIMIT ? BigInt(process.env.GAS_LIMIT) : null;
+  const extraGas = gasLimit ? { gasLimit } : {};
   const configPath = args.config || path.join(TOKENS_DIR, "config", "token-config.json");
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
@@ -204,8 +213,8 @@ async function main() {
   // tx and has already caused NONCE_EXPIRED here).
   const nonces = new NonceTracker(provider, deployer);
   let nonce = await nonces.init();
-  const factoryAddress = ethers.getCreateAddress({ from: deployer, nonce });
-  console.log(`\n[1/6] burner nonce is ${nonce}; factory WILL deploy at ${factoryAddress}`);
+  const factoryAddress = factoryOverride || ethers.getCreateAddress({ from: deployer, nonce });
+  console.log(`\n[1/6] burner nonce is ${nonce}; factory ${factoryOverride ? "REUSED at" : "WILL deploy at"} ${factoryAddress}`);
   console.log("      (factory address is CREATE-derived, so it cannot be vanity — only token + NFT carry the prefix)");
 
   // --- Step 2: mine the token salt --------------------------------------
@@ -217,25 +226,33 @@ async function main() {
     fail(`miner/ethers disagree on the token address: ${tokenSalt.address} vs ${predictedToken}`);
   }
 
-  // --- Step 3: deploy the factory (nonce must not have moved) -----------
-  console.log("[3/6] deploying Create2Factory...");
-  const nonceNow = await nonces.stableRead();
-  if (nonceNow !== nonce) {
-    fail(`burner nonce moved ${nonce} -> ${nonceNow} while mining (another transaction used this key?) — aborting, re-run to mine against the fresh nonce`);
+  // --- Step 3: deploy the factory (or reuse an existing one) ------------
+  let factoryDeployed;
+  if (factoryOverride) {
+    console.log("[3/6] reusing existing factory at", factoryOverride, "(FACTORY_ADDRESS set — skipping deploy)");
+    const existingCode = await provider.getCode(factoryOverride);
+    if (existingCode === "0x") fail(`no code at FACTORY_ADDRESS ${factoryOverride}`);
+    factoryDeployed = factoryOverride;
+  } else {
+    console.log("[3/6] deploying Create2Factory...");
+    const nonceNow = await nonces.stableRead();
+    if (nonceNow !== nonce) {
+      fail(`burner nonce moved ${nonce} -> ${nonceNow} while mining (another transaction used this key?) — aborting, re-run to mine against the fresh nonce`);
+    }
+    const factoryFactory = new ethers.ContractFactory(factoryArtifact.abi, factoryArtifact.bytecode.object, signer);
+    const factory = await factoryFactory.deploy({ nonce: nonces.take(), ...extraGas });
+    await factory.waitForDeployment();
+    factoryDeployed = await factory.getAddress();
+    if (factoryDeployed.toLowerCase() !== factoryAddress.toLowerCase()) {
+      fail(`factory landed at ${factoryDeployed}, expected ${factoryAddress} — nonce moved mid-flight, aborting`);
+    }
+    console.log(`  factory deployed at ${factoryDeployed}`);
   }
-  const factoryFactory = new ethers.ContractFactory(factoryArtifact.abi, factoryArtifact.bytecode.object, signer);
-  const factory = await factoryFactory.deploy({ nonce: nonces.take() });
-  await factory.waitForDeployment();
-  const factoryDeployed = await factory.getAddress();
-  if (factoryDeployed.toLowerCase() !== factoryAddress.toLowerCase()) {
-    fail(`factory landed at ${factoryDeployed}, expected ${factoryAddress} — nonce moved mid-flight, aborting`);
-  }
-  console.log(`  factory deployed at ${factoryDeployed}`);
 
   // --- Step 4: deploy AGNA via the factory ------------------------------
   console.log("[4/6] deploying AGNA via factory CREATE2...");
   const factoryContract = new ethers.Contract(factoryDeployed, factoryArtifact.abi, signer);
-  let tx = await factoryContract.deploy(tokenInitCode, tokenSalt.salt, { nonce: nonces.take() });
+  let tx = await factoryContract.deploy(tokenInitCode, tokenSalt.salt, { nonce: nonces.take(), ...extraGas });
   let receipt = await tx.wait();
   console.log(`  token deploy tx ${receipt.hash} (gas ${receipt.gasUsed})`);
   if (predictedToken.toLowerCase().startsWith("0x" + PREFIX) === false) {
@@ -269,7 +286,7 @@ async function main() {
     fail(`token.predictDeploy() disagrees: ${predictedByToken} vs ${predictedNft}`);
   }
   console.log(`  token.predictDeploy() agrees: ${predictedNft}`);
-  tx = await token.deploy(sbtInitCode, nftSalt.salt, { nonce: nonces.take() });
+  tx = await token.deploy(sbtInitCode, nftSalt.salt, { nonce: nonces.take(), ...extraGas });
   receipt = await tx.wait();
   console.log(`  NFT deploy tx ${receipt.hash} (gas ${receipt.gasUsed})`);
   const nftCode = await provider.getCode(predictedNft);
@@ -289,7 +306,7 @@ async function main() {
   let allocation = (initialSupply * BigInt(t.agentAllocationBps)) / 10000n;
   if (allocation > 0n && agent) {
     console.log(`[6/6] transferring agent allocation (${ethers.formatUnits(allocation, decimals)} ${t.symbol}) to ${agent}...`);
-    tx = await token.transfer(agent, allocation, { nonce: nonces.take() });
+    tx = await token.transfer(agent, allocation, { nonce: nonces.take(), ...extraGas });
     receipt = await tx.wait();
     console.log(`  allocation tx ${receipt.hash}`);
     const agentBal = await token.balanceOf(agent);
