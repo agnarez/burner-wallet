@@ -123,7 +123,7 @@ const CHAINS = {
     baseDecimals: 18,
     factory: null,
     router: null,
-    gasNote: 'BOTH wallets hold 0 zkLTC — no gas yet. Claim zkLTC from the LitVM faucet before any live use.',
+    gasNote: 'Burner holds 0.05 zkLTC (claimed 2026-11-18 from the LitVM faucet, 24h cooldown); agent wallet holds 0 zkLTC. No V2 DEX verified yet, so still config-only for live trades.',
     dexNote: 'No Uniswap V2-style DEX verified on LitVM testnet yet. Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
   },
 };

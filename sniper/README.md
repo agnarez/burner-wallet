@@ -27,7 +27,7 @@ through `circle wallet ...`, not here.
 | Robinhood Chain testnet | testnet ETH | 0.01005 ETH | — (doesn't exist here) | **No V2 on testnet** at the Uniswap-listed addresses (mainnet-only deployment). |
 | Sepolia | ETH | **0.05 ETH** | 0 ETH | Uniswap V2 **is** deployed — Sepolia-specific addresses (factory `0xF62c…`, router `0xeE56…`, 18,772 pairs, verified live). The burner has gas — funded by agnarez himself ([tx](https://sepolia.etherscan.io/tx/0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035)) — so Sepolia is a usable live testnet target alongside Arc Testnet. |
 | Base Sepolia | ETH | 0 ETH | 0 ETH | **No V2** at the known addresses (factory has no code; the contract at the mainnet router address isn't a V2 router). No gas either. |
-| LitVM testnet ("LiteForge") | zkLTC | 0 zkLTC | 0 zkLTC | **No V2 verified** on LitVM yet. No gas either — config only until zkLTC is claimed and a DEX is found. |
+| LitVM testnet ("LiteForge") | zkLTC | **0.05 zkLTC** (claimed 2026-11-18, [tx](https://explorer.testnet.liteforge.zeeve.net/tx/0xa40ea16a88a550c83031b0c7dce297648d080d1547bd0e82663b48a75ca2cf23)) | 0 zkLTC | **No V2 verified** on LitVM yet — config only until a DEX is found. Burner has gas now. |
 
 Balances only grow from here: the faucet job tops both wallets up with 20
 USDC per chain every 2 hours. The Sepolia / Base Sepolia gas gap is
