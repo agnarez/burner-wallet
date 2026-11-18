@@ -10,6 +10,7 @@ Testnet tokens only — for testing sends, swaps and the dashboard. No real mone
 | Base Sepolia | USDC (testnet) | 20 | Confirmation page said "Tokens sent"; no tx hash shown |
 | Arc Testnet | USDC (testnet) | 20 | Tx 0x6b07ff25d2f43de493cd40efbb1062f4c9345e388f0b7cc95621749a8ad6e644 — confirmed on screen; receipt check timed out, re-verify next run |
 | Bitcoin testnet4 | tBTC | 0.00046 | Confirmed on-chain: 46,000 sats, 1 tx |
+| Robinhood Chain testnet | testnet ETH + stock tokens | 0.01 ETH + 5 each TSLA/AMZN/PLTR/NFLX/AMD | Claimed manually by agnarez 2026-11-18 to the burner address (contract call sendTokensAndEther from his own wallet 0xF691…); verified on-chain in the burner |
 
 ## Auto-claimed daily (no login, no captcha)
 

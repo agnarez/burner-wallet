@@ -105,6 +105,7 @@ async function main() {
     sepolia: 'https://eth-sepolia.blockscout.com',
     baseSepolia: 'https://base-sepolia.blockscout.com',
     arc: 'https://testnet.arcscan.app',
+    robinhood: 'https://explorer.testnet.chain.robinhood.com',
   };
   const TESTNET_RPCS = {
     sepolia: 'https://ethereum-sepolia-rpc.publicnode.com',
@@ -121,8 +122,15 @@ async function main() {
       }));
       let native = null;
       try {
-        const r = await rpc(TESTNET_RPCS[name], 'eth_getBalance', [A.ethereum_evm, 'latest']);
-        native = weiToEth(r.result || '0x0');
+        if (name === 'robinhood') {
+          // Robinhood testnet has no documented public RPC; native balance
+          // comes from the explorer's address endpoint instead.
+          const a = await jfetch(`${base}/api/v2/addresses/${A.ethereum_evm}`);
+          native = (Number(a.coin_balance || 0) / 1e18).toString();
+        } else {
+          const r = await rpc(TESTNET_RPCS[name], 'eth_getBalance', [A.ethereum_evm, 'latest']);
+          native = weiToEth(r.result || '0x0');
+        }
       } catch (e) { native = 'ERR'; }
       return { address: A.ethereum_evm, native, tokens };
     });

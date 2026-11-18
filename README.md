@@ -35,7 +35,7 @@ Your addresses are in the dashboard after import. The seed phrase and private ke
 
 ## Faucets
 
-Testnet tokens for trying the wallet: see [faucet-plan.md](faucet-plan.md). Claimed so far: 20 testnet USDC each on Sepolia, Base Sepolia and Arc Testnet, plus 0.00046 testnet4 BTC. Testnet only, no real value.
+Testnet tokens for trying the wallet: see [faucet-plan.md](faucet-plan.md). Claimed so far: 20 testnet USDC each on Sepolia, Base Sepolia and Arc Testnet, plus 0.00046 testnet4 BTC, plus 0.01 testnet ETH and 5 each of TSLA/AMZN/PLTR/NFLX/AMD on Robinhood Chain Testnet. Testnet only, no real value.
 
 ## Scripts
 

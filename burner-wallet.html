@@ -809,7 +809,14 @@ const EVM_CHAINS={
     {id:11155111,name:"Sepolia",symbol:"ETH",rpc:"https://rpc.sepolia.org",explorer:"https://sepolia.etherscan.io",oo:"eth",usdc:"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",usdcDec:6},
     {id:84532,name:"Base Sepolia",symbol:"ETH",rpc:"https://sepolia.base.org",explorer:"https://sepolia.basescan.org",oo:"base",usdc:"0x036CbD53842c5426634e7929541eC2318f3dCF7e",usdcDec:6},
     {id:80002,name:"Polygon Amoy",symbol:"MATIC",rpc:"https://rpc-amoy.polygon.technology",explorer:"https://amoy.polygonscan.com",oo:"polygon",usdc:"0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",usdcDec:6},
-    {id:5042002,name:"Arc Testnet",symbol:"USDC",rpc:"https://rpc.testnet.arc.network",explorer:"https://explorer.testnet.arc.io",oo:null}
+    {id:5042002,name:"Arc Testnet",symbol:"USDC",rpc:"https://rpc.testnet.arc.network",explorer:"https://explorer.testnet.arc.io",oo:null},
+    {id:46630,name:"Robinhood Chain Testnet",symbol:"ETH",rpc:null,explorer:"https://explorer.testnet.chain.robinhood.com",explorerApi:"https://explorer.testnet.chain.robinhood.com/api/v2",oo:null,stocks:[
+      {symbol:"TSLA",contract:"0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",decimals:18},
+      {symbol:"AMZN",contract:"0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",decimals:18},
+      {symbol:"PLTR",contract:"0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",decimals:18},
+      {symbol:"NFLX",contract:"0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93",decimals:18},
+      {symbol:"AMD",contract:"0x71178BAc73cBeb415514eB542a8995b82669778d",decimals:18}
+    ]}
   ]
 };
 const state={mnemonic:null,passphrase:"",network:"mainnet",wallet:null,evmChainIdx:0,tokens:[],limitOrders:[],syncTimer:null,balances:{},evmBalances:{},syncing:false};
@@ -835,6 +842,30 @@ async function balBTC(addr,testnet){
   return (funded+mem)/1e8;
 }
 async function balEVM(rpc,addr){const v=await rpcCall(rpc,"eth_getBalance",[addr,"latest"]);return Number(BigInt(v))/1e18;}
+/* Robinhood Chain Testnet has no documented public RPC — its balances come from
+   the chain's Blockscout explorer API instead: coin_balance on the address
+   endpoint for the native coin, and the token-balances endpoint for ERC-20s. */
+async function balRobinhoodNative(apiBase,addr){
+  const j=await fetchJSON(apiBase+"/addresses/"+addr);
+  if(j.coin_balance===null||j.coin_balance===undefined)throw new Error("Explorer returned no coin_balance");
+  return Number(BigInt(j.coin_balance))/1e18;
+}
+async function balRobinhoodStocks(chain,addr){
+  const list=await fetchJSON(chain.explorerApi+"/addresses/"+addr+"/token-balances");
+  const byAddr={};
+  if(Array.isArray(list))for(const it of list){
+    const th=(it.token&&(it.token.address_hash||it.token.address)||"").toLowerCase();
+    if(th)byAddr[th]=it;
+  }
+  const out={};
+  for(const s of chain.stocks){
+    const it=byAddr[s.contract.toLowerCase()];
+    if(!it){out[s.symbol]=0;continue;}
+    const dec=Number(it.token&&it.token.decimals!=null?it.token.decimals:s.decimals)||18;
+    out[s.symbol]=Number(BigInt(it.value))/Math.pow(10,dec);
+  }
+  return out;
+}
 async function balSOL(addr,testnet){
   const url=testnet?"https://api.devnet.solana.com":"https://api.mainnet-beta.solana.com";
   const v=await rpcCall(url,"getBalance",[addr]);return v.value/1e9;
@@ -880,10 +911,15 @@ function renderChains(){
       const eb=state.evmBalances[i]||{};const active=i===state.evmChainIdx;
       const nb=eb.native===undefined?"…":eb.native===null?"n/a":fmtBal(eb.native);
       const ub=eb.usdc===undefined?"…":eb.usdc===null?"n/a":fmtBal(eb.usdc);
-      return `<button type="button" class="evmrow${active?" on":""}" data-evmrow="${i}" aria-pressed="${active}" title="Use ${esc(c2.name)} for Send &amp; Swap">
-        <span class="nm"><span>${c2.name} <span class="path">chain ${c2.id}</span></span>${active?'<span class="pill">Send · Swap</span>':""}</span>
-        <span class="bals"><span><span data-evmbal="${i}">${nb}</span> <small>${c2.symbol}</small></span>${c2.usdc?`<span class="usdc"><span data-usdcbal="${i}">${ub}</span> <small>USDC</small></span>`:""}</span>
-      </button>`;}).join("")}</div><p class="small-txt" style="margin:.5rem 0 0">Same address on every chain — all balances load at once, USDC included. Tap a chain to make it the Send / Swap chain.</p>`:`<div class="bal" data-bal="${k}">${bal===undefined?"…":fmtBal(bal)} <small>${c.symbol}</small></div>`;
+      const stocksHtml=c2.stocks?c2.stocks.map(s=>{
+        const sv=eb.stocks===null?null:(eb.stocks?eb.stocks[s.symbol]:undefined);
+        const st=sv===undefined?"…":sv===null?"n/a":fmtBal(sv);
+        return `<span><span data-stockbal="${i}:${s.symbol}">${st}</span> <small>${s.symbol}</small></span>`;
+      }).join(""):"";
+      return `<button type="button" class="evmrow${active?" on":""}" data-evmrow="${i}" aria-pressed="${active}" title="${c2.stocks?"Balances via the Robinhood explorer API — view only, no public RPC":"Use "+esc(c2.name)+" for Send &amp; Swap"}">
+        <span class="nm"><span>${c2.name} <span class="path">chain ${c2.id}</span></span>${active?'<span class="pill">Send · Swap</span>':""}${c2.stocks?'<span class="pill">Explorer API</span>':""}</span>
+        <span class="bals"><span><span data-evmbal="${i}">${nb}</span> <small>${c2.symbol}</small></span>${c2.usdc?`<span class="usdc"><span data-usdcbal="${i}">${ub}</span> <small>USDC</small></span>`:""}${stocksHtml}</span>
+      </button>`;}).join("")}</div><p class="small-txt" style="margin:.5rem 0 0">Same address on every chain — all balances load at once, USDC included. Tap a chain to make it the Send / Swap chain.${state.network==="testnet"?" Robinhood Chain Testnet shows its testnet ETH plus the TSLA, AMZN, PLTR, NFLX and AMD stock tokens, loaded automatically from its explorer — view-only, since that chain has no public RPC.":""}</p>`:`<div class="bal" data-bal="${k}">${bal===undefined?"…":fmtBal(bal)} <small>${c.symbol}</small></div>`;
     return `<article class="card" style="margin:0">
       <div class="chain-head"><span class="dot" style="background:${c.color}">${c.short}</span><div><h3>${c.chain}</h3><span class="path">${c.path}</span></div></div>
       <div class="addr">${c.address}</div>
@@ -901,6 +937,8 @@ function renderChains(){
   document.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>{const map={btc:"btc",evm:"evm",sol:"sol",trx:"trx",sui:"sui",ton:"ton",near:"near"};$("sendChain").value=map[b.dataset.send];updateSendNote();if(typeof openTool==="function")openTool("send","pay");else document.querySelector('[data-tab="send"]').click();});
   document.querySelectorAll("[data-evmrow]").forEach(r=>r.onclick=()=>{
     const i=Number(r.dataset.evmrow);if(i===state.evmChainIdx)return;
+    const cc=EVM_CHAINS[state.network][i];
+    if(cc&&cc.stocks){toast(cc.name+" is view-only here — balances come from its explorer, and it has no public RPC for sending yet.");return;}
     state.evmChainIdx=i;renderChains();fillSwapChains();fillSendChainsLabel();refreshBalances();
   });
   // backup key table
@@ -930,6 +968,13 @@ async function refreshBalances(){
     const chains=EVM_CHAINS[state.network];
     await Promise.all(chains.map(async(c,i)=>{
       const e=state.evmBalances[i]||(state.evmBalances[i]={native:undefined,usdc:undefined});
+      if(c.stocks&&c.explorerApi){
+        // Robinhood Chain Testnet: no public RPC — native coin_balance and the
+        // five stock tokens both come from its explorer API.
+        try{e.native=await balRobinhoodNative(c.explorerApi,w.evm.address);}catch(err){e.native=null;}
+        try{e.stocks=await balRobinhoodStocks(c,w.evm.address);}catch(err){e.stocks=null;}
+        return;
+      }
       try{e.native=await balEVM(c.rpc,w.evm.address);}catch(err){e.native=null;}
       if(c.usdc){try{e.usdc=await erc20Balance({rpc:c.rpc,contract:c.usdc,decimals:c.usdcDec});}catch(err){e.usdc=null;}}
     }));
@@ -941,6 +986,10 @@ async function refreshBalances(){
       if(nEl)nEl.textContent=e.native===undefined?"…":e.native===null?"n/a":fmtBal(e.native);
       const uEl=document.querySelector(`[data-usdcbal="${i}"]`);
       if(uEl)uEl.textContent=e.usdc===undefined?"…":e.usdc===null?"n/a":fmtBal(e.usdc);
+      if(c.stocks)c.stocks.forEach(s=>{
+        const sEl=document.querySelector(`[data-stockbal="${i}:${s.symbol}"]`);
+        if(sEl)sEl.textContent=e.stocks===null?"n/a":!e.stocks||e.stocks[s.symbol]===undefined?"…":fmtBal(e.stocks[s.symbol]);
+      });
     });
     // token balances
     for(const tok of state.tokens){try{tok.balance=await erc20Balance(tok);}catch(e){tok.balance=null;} }
@@ -1102,8 +1151,11 @@ function askConfirm(msg){
 
 /* ================= Swap quotes ================= */
 function fillSwapChains(){
-  $("swapChain").innerHTML=EVM_CHAINS[state.network].map((c,i)=>`<option value="${i}">${c.name}</option>`).join("");
-  $("tokChain").innerHTML=EVM_CHAINS[state.network].map((c,i)=>`<option value="${i}">${c.name}</option>`).join("");
+  // Chains without an RPC (Robinhood Chain Testnet) stay out of the Swap and
+  // custom-token pickers — those tools read contracts over RPC.
+  const sendable=EVM_CHAINS[state.network].map((c,i)=>({c,i})).filter(x=>!x.c.stocks);
+  $("swapChain").innerHTML=sendable.map(x=>`<option value="${x.i}">${x.c.name}</option>`).join("");
+  $("tokChain").innerHTML=sendable.map(x=>`<option value="${x.i}">${x.c.name}</option>`).join("");
   $("actChain").innerHTML=[`<option value="evm">EVM — ${EVM_CHAINS[state.network][state.evmChainIdx].name}</option>`,`<option value="btc">Bitcoin</option>`,`<option value="sol">Solana</option>`].join("");
 }
 const NATIVE="0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -1443,7 +1495,7 @@ refreshVaultUI();
 const PRICE_IDS={btc:"bitcoin",eth:"ethereum",bnb:"binancecoin",matic:"polygon-ecosystem-token",avax:"avalanche-2",usdc:"usd-coin",sol:"solana",trx:"tron",sui:"sui",ton:"the-open-network",near:"near"};
 state.prices={};
 let priceTimer=null;
-function evmPriceKey(c){return {1:"eth",56:"bnb",137:"matic",42161:"eth",10:"eth",43114:"avax",8453:"eth",11155111:"eth",84532:"eth",80002:"matic",5042002:"usdc"}[c.id]||"eth";}
+function evmPriceKey(c){return {1:"eth",56:"bnb",137:"matic",42161:"eth",10:"eth",43114:"avax",8453:"eth",11155111:"eth",84532:"eth",80002:"matic",5042002:"usdc",46630:"eth"}[c.id]||"eth";}
 function priceOf(pk){if(!pk)return null;const p=state.prices[PRICE_IDS[pk]];return p&&typeof p.idr==="number"?p.idr:null;}
 function chgOf(pk){if(!pk)return null;const p=state.prices[PRICE_IDS[pk]];return p&&typeof p.idr_24h_change==="number"?p.idr_24h_change:null;}
 function fmtRp(n){if(n===null||n===undefined||!isFinite(n))return"—";return "Rp"+Number(n).toLocaleString("en-US",{maximumFractionDigits:2});}
@@ -1460,8 +1512,9 @@ function homeRows(){
   rows.push({sym:"BTC",tag:"Bitcoin",color:"#f7931a",bal:state.balances.btc,pk:"btc",act:()=>openSend("btc")});
   EVM_CHAINS[state.network].forEach((c,i)=>{
     const eb=state.evmBalances[i]||{};
-    rows.push({sym:c.symbol,tag:c.name,color:"#627eea",bal:eb.native,pk:evmPriceKey(c),act:()=>{selectEvmChain(i);openSend("evm");}});
+    rows.push({sym:c.symbol,tag:c.name,color:"#627eea",bal:eb.native,pk:evmPriceKey(c),act:()=>{if(c.stocks){openTool("backup","wallet");}else{selectEvmChain(i);openSend("evm");}}});
     if(c.usdc)rows.push({sym:"USDC",tag:c.name,color:"#2775ca",bal:eb.usdc,pk:"usdc",act:()=>{selectEvmChain(i);openSend("evm");}});
+    if(c.stocks)c.stocks.forEach(s=>rows.push({sym:s.symbol,tag:c.name,color:"#00a35c",bal:eb.stocks===null?null:(eb.stocks?eb.stocks[s.symbol]:undefined),pk:null,act:()=>openTool("backup","wallet")}));
   });
   rows.push({sym:"SOL",tag:"Solana",color:"#9945ff",bal:state.balances.sol,pk:"sol",act:()=>openSend("sol")});
   rows.push({sym:"TRX",tag:"TRON",color:"#eb0029",bal:state.balances.trx,pk:"trx",act:()=>openSend("trx")});
