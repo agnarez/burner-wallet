@@ -29,6 +29,10 @@
  *   - Base Sepolia: no V2 at the known addresses (the Base-mainnet
  *     factory address has no code; the contract at the mainnet router
  *     address is not a V2 router), and no gas either.
+ *   - LitVM testnet ("LiteForge", Litecoin's EVM rollup, verified
+ *     2026-11-18): chain 4441, gas token zkLTC, RPC
+ *     https://rpc.testnet.liteforge.zeeve.net/. No V2-style DEX
+ *     verified, and neither wallet holds zkLTC yet — config only.
  *
  * Testnets only. There is deliberately no mainnet entry in the chain
  * table: mainnet use is the user's own call.
@@ -103,6 +107,25 @@ const CHAINS = {
     gasNote: 'BOTH wallets hold 0 ETH — no gas (same as Sepolia).',
     dexNote: 'No Uniswap V2 at the known addresses (verified: factory has no code; the contract at the mainnet router address is not a V2 router). Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
   },
+  'litvm-testnet': {
+    name: 'LitVM Testnet',
+    chainId: 4441,
+    rpc: 'https://rpc.testnet.liteforge.zeeve.net/',
+    // Litecoin's EVM rollup ("LiteForge"), Arbitrum Orbit/Nitro stack.
+    // Verified 2026-11-18: chain ID 4441, gas token zkLTC, RPC above,
+    // explorer https://explorer.testnet.liteforge.zeeve.net/. No
+    // Uniswap V2-style DEX verified on LitVM yet, and neither wallet
+    // holds zkLTC — config only, watcher stays off until gas + a DEX
+    // are both in place.
+    baseToken: null,
+    baseSymbol: 'zkLTC',
+    nativeSymbol: 'zkLTC',
+    baseDecimals: 18,
+    factory: null,
+    router: null,
+    gasNote: 'BOTH wallets hold 0 zkLTC — no gas yet. Claim zkLTC from the LitVM faucet before any live use.',
+    dexNote: 'No Uniswap V2-style DEX verified on LitVM testnet yet. Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
+  },
 };
 
 function isAddress(v) {
@@ -164,7 +187,8 @@ function loadConfig(overrides = {}) {
     dexNote: chain.dexNote,
     dryRun: (env.DRY_RUN ?? 'true').toLowerCase() !== 'false',
     // Buy size per snipe, in the chain's native token (USDC on Arc,
-    // ETH on the other testnets). BUY_AMOUNT_ETH is kept as an alias.
+    // ETH on Sepolia / Base Sepolia / Robinhood, zkLTC on LitVM).
+    // BUY_AMOUNT_ETH is kept as an alias.
     buyAmountNative: envFloat(env, 'BUY_AMOUNT_NATIVE', envFloat(env, 'BUY_AMOUNT_ETH', 0.01)),
     slippageBps: envInt(env, 'SLIPPAGE_BPS', 500),
     maxGasGwei: envInt(env, 'MAX_GAS_GWEI', 100),

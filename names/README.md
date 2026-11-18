@@ -42,6 +42,7 @@ NAME_SBT_ADDRESS=0x... NAME=agent2.arc MINT_TO=agent npm run mint -- --network a
 | **Sepolia** (11155111) | 0.05 ETH (agnarez funded it 2026-11-18, [tx](https://sepolia.etherscan.io/tx/0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035)) | 0 ETH | ✅ Burner only |
 | Robinhood Chain testnet (46630) | 0.01005 testnet ETH (0.01 + 0.00005 from agnarez's Zalalena faucet claim, [tx](https://explorer.testnet.chain.robinhood.com/tx/0x6d339411e3466ae8636d5665b2a72bccfb2b89591d2f9634cf86ae09a4209c44)) | — (wallet doesn't exist here) | ✅ Burner only — public RPC verified: `https://rpc.testnet.chain.robinhood.com` |
 | Base Sepolia (84532) | 0 ETH | 0 ETH | ❌ No gas — see below |
+| LitVM testnet (4441) | 0 zkLTC | 0 zkLTC | ❌ No gas — config only; claim zkLTC from the LitVM faucet first (RPC verified: `https://rpc.testnet.liteforge.zeeve.net/`) |
 
 **Sepolia gas math (measured, not guessed):** deploying NameSBT costs
 ~3,825,133 gas, a mint ~230,000 gas. Sepolia's gas price is currently

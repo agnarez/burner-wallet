@@ -2,13 +2,13 @@
 
 /**
  * Entry point for the sniper watcher.
- *   node src/index.js [--chain arc-testnet|robinhood-testnet|sepolia|base-sepolia]
+ *   node src/index.js [--chain arc-testnet|robinhood-testnet|sepolia|base-sepolia|litvm-testnet]
  *
  * Dry-run is ON by default (DRY_RUN=true in .env). Live trading needs
  * DRY_RUN=false AND a PRIVATE_KEY (the burner wallet's key) in the env.
  *
  * On chains with no known DEX deployment (Arc Testnet, Robinhood Chain
- * testnet) the tool prints the wallet + gas status and stops with
+ * testnet, LitVM testnet) the tool prints the wallet + gas status and stops with
  * guidance instead of pretending to watch — set FACTORY_ADDRESS /
  * ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point it at a V2-style DEX.
  */

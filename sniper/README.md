@@ -27,6 +27,7 @@ through `circle wallet ...`, not here.
 | Robinhood Chain testnet | testnet ETH | 0.01005 ETH | — (doesn't exist here) | **No V2 on testnet** at the Uniswap-listed addresses (mainnet-only deployment). |
 | Sepolia | ETH | **0.05 ETH** | 0 ETH | Uniswap V2 **is** deployed — Sepolia-specific addresses (factory `0xF62c…`, router `0xeE56…`, 18,772 pairs, verified live). The burner has gas — funded by agnarez himself ([tx](https://sepolia.etherscan.io/tx/0x2af1f29f9451b5203d2a14b9ef12a348d8742ed2372da3f6fa1f9fa9dc7fc035)) — so Sepolia is a usable live testnet target alongside Arc Testnet. |
 | Base Sepolia | ETH | 0 ETH | 0 ETH | **No V2** at the known addresses (factory has no code; the contract at the mainnet router address isn't a V2 router). No gas either. |
+| LitVM testnet ("LiteForge") | zkLTC | 0 zkLTC | 0 zkLTC | **No V2 verified** on LitVM yet. No gas either — config only until zkLTC is claimed and a DEX is found. |
 
 Balances only grow from here: the faucet job tops both wallets up with 20
 USDC per chain every 2 hours. The Sepolia / Base Sepolia gas gap is
@@ -66,7 +67,7 @@ npm run manual -- sell  --token 0x... [--percent 100]
 npm run manual -- cycle --token 0x... [--amount 0.01]
 ```
 
-On Arc Testnet / Robinhood testnet today, `npm start` prints the wallet +
+On Arc Testnet / Robinhood testnet / LitVM testnet today, `npm start` prints the wallet +
 gas status and stops with guidance, because no DEX is configured there
 yet. To point it at a V2-style deployment when one appears, set in `.env`:
 

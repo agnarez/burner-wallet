@@ -75,5 +75,18 @@ export default defineConfig({
         "https://rpc.testnet.chain.robinhood.com",
       accounts: burnerAccounts,
     },
+    // LitVM testnet ("LiteForge") — Litecoin's EVM rollup, Arbitrum
+    // Orbit/Nitro stack. Verified 2026-11-18: chain ID 4441, gas token
+    // zkLTC, RPC https://rpc.testnet.liteforge.zeeve.net/, explorer
+    // https://explorer.testnet.liteforge.zeeve.net/. No zkLTC held by
+    // either wallet yet — config only, deploy once gas is claimed.
+    litvmTestnet: {
+      type: "http",
+      chainId: 4441,
+      url:
+        process.env.LITVM_TESTNET_RPC_URL ??
+        "https://rpc.testnet.liteforge.zeeve.net/",
+      accounts: burnerAccounts,
+    },
   },
 });

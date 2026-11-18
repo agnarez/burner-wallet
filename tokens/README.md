@@ -55,7 +55,9 @@ exist.
 ## Two quote modes
 
 - **Native ETH path** (`quoteToken == address(0)`): swaps go through
-  the router's WETH. Used on Sepolia, Base Sepolia, Robinhood testnet.
+  the router's WETH. Used on Sepolia, Base Sepolia, Robinhood testnet —
+  and on **LitVM testnet**, where the native gas token is zkLTC instead
+  of ETH (same mechanism, quote is the chain's native token).
 - **ERC-20 quote path** (`quoteToken != address(0)`): swaps go
   token ↔ quote token. Used on **Arc**, where USDC is the native gas
   token and the router's WETH paths revert — the quote token is the
@@ -74,6 +76,7 @@ verified router with `setRouter()`.
 | **Sepolia** | 11155111 | ETH — **burner 0.05** (funded by agnarez, tx `0x2af1f29f…c035`, receipt 0x1), agent 0 | `0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3` — verified (WETH + factory check out) | ✅ burner deploys |
 | Robinhood testnet | 46630 | ETH — burner 0.01005 | none verified — mainnet addresses hold no code here | ✅ burner deploys (router empty) |
 | Base Sepolia | 84532 | ETH — both wallets 0 | none — the Base mainnet router address holds code but `WETH()`/`factory()` revert, so it is NOT a V2 router | ❌ no gas — do not deploy |
+| LitVM testnet ("LiteForge") | 4441 | zkLTC — both wallets 0 | none verified | ❌ no gas — config only; claim zkLTC from the LitVM faucet first |
 
 Robinhood testnet's public RPC is verified working: `https://rpc.testnet.chain.robinhood.com` (chainId 46630), explorer API `https://explorer.testnet.chain.robinhood.com/api/v2/`.
 
