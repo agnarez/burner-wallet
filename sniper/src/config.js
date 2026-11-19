@@ -103,15 +103,16 @@ const CHAINS = {
   sepolia: {
     name: 'Sepolia',
     chainId: 11155111,
-    // Tenderly public gateway (single node). publicnode is load-balanced
-    // and its backends disagree about the mempool: on 2026-11-19 one
-    // backend reported pendingNonce=134 while ~72 txns (nonces 134-205)
-    // sat unmined in another node's mempool, so a resume at nonce 134
-    // failed with "nonce has already been used". Tenderly gives one
-    // consistent mempool view (verified: three identical pending-nonce
-    // reads, 206/206/206). If Tenderly ever rate-limits, fall back to
-    // the publicnode URL.
-    rpc: 'https://sepolia.gateway.tenderly.co',
+    // publicnode (load-balanced). Tenderly's single-node gateway was
+    // tried on 2026-11-19: it gives a consistent mempool view (three
+    // identical pending-nonce reads, 206/206/206 — it held the ~72
+    // stuck 17-wei txns that publicnode's backends disagreed about),
+    // but the first send through it hung for 90s+ with no response,
+    // so it was reverted. The real fix for the stuck txns is the
+    // 0.01 gwei gas floor in volume.cjs (17 wei was barely includable
+    // at a ~16 wei base fee). Sends at 0.01 gwei propagate and mine
+    // from any backend, replacing the stuck low-price txns.
+    rpc: 'https://ethereum-sepolia-rpc.publicnode.com',
     // Uniswap V2 deployment for Sepolia, per developers.uniswap.org —
     // NOT the mainnet canonical addresses. Verified live 2026-11-18:
     // factory has code, allPairsLength = 18,772; router WETH() returns

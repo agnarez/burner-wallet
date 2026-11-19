@@ -310,7 +310,13 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     BUY_AMOUNT_NATIVE: TRADE_SIZE[chainKey],
     SLIPPAGE_BPS: BUY_SLIPPAGE_BPS,
   });
-  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+  // 30s request timeout: ethers has no default timeout, so a stalled RPC
+  // connection hangs forever (Sepolia did exactly that on 2026-11-19 via
+  // Tenderly — the first send never returned). With a timeout the call
+  // throws, and withRetry / sendWithRetry retries it instead of hanging.
+  const req = new ethers.FetchRequest(cfg.rpcUrl);
+  req.timeout = 30000;
+  const provider = new ethers.JsonRpcProvider(req);
   const wallet = new ethers.Wallet(pk, provider);
   const agnaAddr = AGNA[chainKey];
   const pairAddr = PAIRS[chainKey];
