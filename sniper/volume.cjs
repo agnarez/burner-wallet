@@ -296,7 +296,12 @@ async function sendWithRetry(wallet, tx, label) {
     } catch (e) {
       lastErr = e;
       const msg = ((e.shortMessage || e.message || '') + ' ' + (e.code || '')).toLowerCase();
-      if (msg.includes('already known') || msg.includes('nonce too low') || msg.includes('replacement transaction underpriced')) {
+      // "already submitted" errors: the txn is already in the mempool
+      // (usually because the first send succeeded but its response was
+      // lost, so this retry re-sends the same nonce). Retrying is futile
+      // — fail fast instead of burning 3 attempts. The txn itself is
+      // fine; the receipt poll / checkpoint rebuild will confirm it.
+      if (msg.includes('already known') || msg.includes('nonce too low') || msg.includes('replacement transaction underpriced') || msg.includes('replacement fee too low')) {
         throw new Error(`${label}: ${e.shortMessage || e.message} — stopping chain (nonce conflict)`);
       }
       await sleep(1000 * (attempt + 1));
@@ -314,12 +319,16 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     BUY_AMOUNT_NATIVE: TRADE_SIZE[chainKey],
     SLIPPAGE_BPS: BUY_SLIPPAGE_BPS,
   });
-  // 30s request timeout: ethers has no default timeout, so a stalled RPC
+  // 120s request timeout: ethers has no default timeout, so a stalled RPC
   // connection hangs forever (Sepolia did exactly that on 2026-11-19 via
   // Tenderly — the first send never returned). With a timeout the call
   // throws, and withRetry / sendWithRetry retries it instead of hanging.
+  // 120s (not 30s): publicnode's sends are slow but functional, and a
+  // 30s timeout fired mid-send, so the retry re-sent the same nonce and
+  // failed with "replacement fee too low" — the txn had actually gone
+  // through. 120s gives a slow send time to return its hash.
   const req = new ethers.FetchRequest(cfg.rpcUrl);
-  req.timeout = 30000;
+  req.timeout = 120000;
   const provider = new ethers.JsonRpcProvider(req);
   const wallet = new ethers.Wallet(pk, provider);
   const agnaAddr = AGNA[chainKey];
