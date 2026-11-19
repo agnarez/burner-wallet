@@ -46,6 +46,17 @@
       "mintTx": "0x5db4115bfe93126e4e73adb00e223f24ea3e470b6c8a47217a080cb8d215ea65",
       "setPrimaryTx": "0xc4a0c92007e0e27b9fa941b370aca4f78dae90c6ee9bfa58ac80e0009c0a5393",
       "verified": true
+    },
+    "Base Sepolia": {
+      "chain": "Base Sepolia",
+      "chainId": 84532,
+      "nft": "0xA69000506Aefc50Afc8F37fC8786c65CcA663075",
+      "tokenId": "1",
+      "name": "agnamuse",
+      "primaryName": "agnamuse",
+      "mintTx": "0xe95e9cb2f0ca451ae6f793ec3b2f4032638730b2740086b2de3daf0677d57fa6",
+      "setPrimaryTx": "0x49f5e98ad9a50a64dae02365303393318172f160bdcabd84c8224d9cc99c14fa",
+      "verified": true
     }
   }
 }

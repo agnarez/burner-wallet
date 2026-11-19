@@ -93,19 +93,28 @@
       "v4UniversalRouter": "0x722f0b6864dF8A549865C72723e7Aa06Ee66B056"
     },
     "84532": {
-      "agentWallet": "0xd305dc7b4f3c4dc0cf1da53bf20cd96ad1653cf7",
+      "agentWallet": null,
       "default": false,
-      "deployable": false,
+      "deployable": true,
       "explorer": "https://sepolia.basescan.org",
-      "gasBalances": "burner 0 ETH, agent 0 ETH (verified 2026-11-18)",
-      "gasFunded": false,
+      "gasBalances": "burner 0.03 ETH (bridged from Sepolia 2026-11-20 ~05:37 GMT+7, tx 0xe75814a719971c71a258223fc30f36ba850ad862de1cdbf9066b1a7e152396b7, L1StandardBridge 0xfd0Bf71F60660E2f608ed56e1659C450eB113120); agent 0 ETH",
+      "gasFunded": true,
       "gasToken": "ETH",
       "name": "base-sepolia",
-      "notes": "NOT deployable yet \u2014 both wallets hold 0 ETH and the Circle faucet only gives USDC, not ETH. Config is ready for when gas is obtained (do not go fetch gas yourself). The Base mainnet V2 router address holds code here but its WETH()/factory() calls revert, so it is NOT a V2 router \u2014 do not use it.",
+      "notes": "DEPLOYED 2026-11-20: $AGNA build replicated (vanity token + NameSBT + own AGNAmuse Factory V2+V3+V4 + AGNA/WETH pool). 10% agent allocation STAYS with the burner (agent has 0 ETH on Base Sepolia, no gas \u2014 same as RH/LitVM). No canonical Uniswap V2/V3 on Base Sepolia (verified live 2026-11-20: official V2 deployments page lists no Base Sepolia entry; Base mainnet V2 factory 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6 has NO code here, its router 0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24 has code but factory()/WETH() revert \u2014 NOT a V2 router; canonical V3 factory 0x1F98431c8aD98523631AE4a59f267346ea31F984 has NO code). Permit2 canonical 0x000000000022D473030F116dDEE9F6B43aC78BA3 already deployed \u2014 reused for V4. Token router stays 0x0 (same as RH/LitVM; setRouter available if buyback is ever wired).",
       "quoteSymbol": "ETH",
       "quoteToken": "",
-      "router": "",
-      "rpc": "https://base-sepolia-rpc.publicnode.com"
+      "router": "0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d",
+      "rpc": "https://sepolia.base.org",
+      "factory": "0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+      "weth": "0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6",
+      "routerVerified": "live 2026-11-20: own AGNAmuse Factory V2 (WETH9 + factory + Router02 from official @uniswap artifacts); code present, WETH() and factory() return our factory 0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+      "v3factory": "0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7",
+      "v3PositionManager": "0x597c754bc605adA08E43E318956Abda35CbF30E0",
+      "v3SwapRouter": "0x748FF51f80ef576989eA8F7f809E60fE8A35C23c",
+      "v4PoolManager": "0x38893923391A77185392Ff7986EC2f78A28D3AE4",
+      "v4PositionManager": "0xe9f116220486AB52b8D245aF3C19de5C025Adea8",
+      "v4UniversalRouter": "0x2aa1c1ECDfB3b41fafEb0505BCE3ee32b5F7bbd0"
     }
   },
   "token": {
