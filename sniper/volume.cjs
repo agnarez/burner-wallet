@@ -5,6 +5,21 @@
  * on our own AGNAmuse V2 DEX: 500 round trips = 1,000 trading txns per chain,
  * 4,000 total across Sepolia, Arc Testnet, Robinhood Chain testnet, LitVM testnet.
  *
+ * V2 (2026-11-19): multi-token. Each chain trades the pair in pairs-v2.json —
+ * the wrapped-native pair where one exists (Sepolia: Uniswap V2 WETH/USDC),
+ * otherwise the AGNA pair (Arc/RH/LitVM factories hold only the AGNA pair).
+ * Two gates run before/around every trade (see src/gates.js):
+ *   - GAS BUDGET: live gas price vs a per-chain ceiling, estimated round-trip
+ *     cost vs a per-round cap, and a running daily spend accumulator. A hit
+ *     stops the batch RESUMABLY (the 5-min resume cron retries it; the
+ *     accumulator resets each calendar day).
+ *   - SELL-VERIFY (honeypot gate): static pre-checks + a live micro-test
+ *     (buy dust, immediately sell it all; only graduate if the sell
+ *     succeeds and returns >=90%) for every new pair; a sell-quote check
+ *     before EVERY sell; a per-round return threshold (AGNA 80% — the 5%
+ *     tax makes its normal return ~88%; other pairs 90%). A failed token
+ *     goes to token-blacklist.json and the chain falls back to AGNA.
+ *
  * Trade sizes (fixed per round trip; <~0.5% price impact per trade and
  * total AGNA burned < ~5% of the 404T supply):
  *   sepolia            0.00005  ETH
@@ -115,6 +130,74 @@ const BUY_SLIPPAGE_BPS = 500; // buy minOut = 95% of quote
 const SELL_SLIPPAGE_BPS = 1000; // sell minOut = 90% of sell quote
 const DEADLINE_SECONDS = 60 * 20;
 const MAX_GAS_GWEI = 100;
+
+// ---- Sniper v2: pair map, gas budget, blacklist, gates ----
+// pairs-v2.json is the source of truth for which pair each chain trades.
+// AGNA entries are the pre-verified fallback (live-traded 2026-11-19).
+const PAIRS_V2_FILE = path.join(__dirname, 'pairs-v2.json');
+const BLACKLIST_FILE = path.join(__dirname, 'token-blacklist.json');
+function loadPairsV2() {
+  try { return JSON.parse(fs.readFileSync(PAIRS_V2_FILE, 'utf8')); } catch { return { version: 1, chains: {} }; }
+}
+function savePairsV2(doc) {
+  fs.writeFileSync(PAIRS_V2_FILE, JSON.stringify(doc, null, 2));
+}
+// Effective trade config for a chain: the pairs-v2 entry, or the AGNA
+// fallback if the file is missing / the pair is unverified / blacklisted.
+function tradeCfgFor(chainKey) {
+  const doc = loadPairsV2();
+  const entry = doc.chains && doc.chains[chainKey];
+  const black = loadBlacklist();
+  if (entry && entry.verified && !black.tokens.includes(entry.token.toLowerCase())) {
+    return { ...entry, source: 'pairs-v2' };
+  }
+  return {
+    token: AGNA[chainKey], tokenSymbol: 'AGNA', tokenDecimals: 18,
+    pair: PAIRS[chainKey], pairName: 'AGNA pair (fallback)',
+    sellOfQuoteBps: SELL_OF_QUOTE_BPS, minReturnBps: 8000,
+    tradeSize: TRADE_SIZE[chainKey], buyWithERC20: chainKey === 'arc-testnet',
+    verified: true, microTested: true, source: 'agna-fallback',
+  };
+}
+function loadBlacklist() {
+  try { return JSON.parse(fs.readFileSync(BLACKLIST_FILE, 'utf8')); } catch { return { version: 1, tokens: [] }; }
+}
+function blacklistToken(tokenAddr, reason) {
+  const bl = loadBlacklist();
+  const t = tokenAddr.toLowerCase();
+  if (!bl.tokens.includes(t)) {
+    bl.tokens.push(t);
+    bl[t] = { reason, at: new Date().toISOString() };
+    fs.writeFileSync(BLACKLIST_FILE, JSON.stringify(bl, null, 2));
+    log(`[blacklist] ${tokenAddr} blacklisted: ${reason}`);
+  }
+  return bl;
+}
+// Gas budget per chain (native units; Arc's "native" is USDC).
+// Daily budget / per-round cap / live-gas ceiling. Defaults come from the
+// measured 2026-11-19 run (Sepolia 0.0018 ETH/day, Arc 4.22 USDC/day,
+// RH 0.001145 ETH/day, LitVM 0.001153 zkLTC/day for 500 rounds).
+const GAS_BUDGET = {
+  sepolia: { daily: '0.002', perRound: '0.000005', ceilingGwei: '0.1' },
+  'arc-testnet': { daily: '5', perRound: '0.01', ceilingGwei: '100' },
+  'robinhood-testnet': { daily: '0.0015', perRound: '0.000005', ceilingGwei: '0.1' },
+  'litvm-testnet': { daily: '0.0015', perRound: '0.000005', ceilingGwei: '0.1' },
+};
+// Measured per-round gas (total, both swaps) — sampled from REAL
+// receipts of the 2026-11-19 run (8-txn sample: 133,890–158,706 gas
+// per swap, avg 142,682). Used as the cost-estimate fallback when
+// estimateGas is unavailable. The old Sepolia figure (143k) was derived
+// from the day's blended ETH total, which mixed 17-wei early txns with
+// 0.022-gwei later ones — at the current 0.022 gwei floor the true cost
+// is ~285k gas/round (~0.0000063 ETH). Arc/RH/LitVM figures are the
+// same derivation and are approximate (their gas prices were
+// floor-dominated all day, so they are closer to true).
+const MEASURED_ROUND_GAS = { sepolia: 285000n, 'arc-testnet': 266000n, 'robinhood-testnet': 229000n, 'litvm-testnet': 230000n };
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+function budgetState(cs) {
+  if (!cs.gasBudget || cs.gasBudget.date !== todayKey()) cs.gasBudget = { date: todayKey(), spentWei: '0' };
+  return cs.gasBudget;
+}
 
 const ERC20_FULL_ABI = [
   'function approve(address spender, uint256 amount) external returns (bool)',
@@ -249,21 +332,24 @@ async function fetchGasPrice(provider, cfg) {
   return gp;
 }
 
-async function readBaseline(provider, cfg) {
-  const agna = tokenContractFull(AGNA[cfg.chainKey], provider);
-  const pair = pairContract(PAIRS[cfg.chainKey], provider);
-  const [nonce, bal, agnaBal, supply, reserves] = await Promise.all([
+async function readBaseline(provider, cfg, trade) {
+  const token = tokenContractFull(trade.token, provider);
+  const pair = pairContract(trade.pair, provider);
+  const [nonce, bal, tokenBal, supply, reserves] = await Promise.all([
     provider.getTransactionCount(BURNER, 'pending'),
     provider.getBalance(BURNER),
-    agna.balanceOf(BURNER),
-    agna.totalSupply(),
+    token.balanceOf(BURNER),
+    token.totalSupply(),
     pair.getReserves(),
   ]);
   return {
     startNonce: nonce,
     nativeBalance: bal.toString(),
-    agnaBalance: agnaBal.toString(),
-    agnaTotalSupply: supply.toString(),
+    tokenAddress: trade.token,
+    tokenSymbol: trade.tokenSymbol,
+    tokenBalance: tokenBal.toString(),
+    tokenTotalSupply: supply.toString(),
+    pairAddress: trade.pair,
     reserve0: reserves[0].toString(),
     reserve1: reserves[1].toString(),
     gasPriceGwei: ethers.formatUnits((await provider.getFeeData()).gasPrice ?? 0n, 'gwei'),
@@ -313,6 +399,149 @@ async function sendWithRetry(wallet, tx, label) {
   throw new Error(`${label}: send failed after 3 attempts: ${lastErr.shortMessage || lastErr.message}`);
 }
 
+// V2: approve the traded token (and the base token on ERC-20-buy chains)
+// for the router. Skips any approval already at max. Awaited, one-time,
+// NOT counted in the 1,000 trading txns.
+async function approveForTrade({ provider, wallet, cfg, trade, cs, save }) {
+  const tokenC = tokenContractFull(trade.token, provider);
+  const baseC = tokenContract(cfg.baseToken, provider);
+  const needToken = (await tokenC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
+  const needBase = cfg.buyWithERC20 && (await baseC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
+  const gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${cfg.chainKey} gas price`);
+  if (needToken) {
+    const tx = await tokenC.approve.populateTransaction(cfg.router, ethers.MaxUint256);
+    const sent = await sendWithRetry(wallet, { ...tx, gasPrice, nonce: cs.nextNonce }, `${cfg.chainKey} approve ${trade.tokenSymbol}`);
+    log(`[${cfg.chainKey}] approve ${trade.tokenSymbol} sent ${sent.hash} nonce=${cs.nextNonce}`);
+    const rc = await sent.wait();
+    if (rc.status !== 1) throw new Error(`${trade.tokenSymbol} approve reverted`);
+    cs.approveHashes.push(sent.hash);
+    cs.hashes.push(sent.hash);
+    cs.nextNonce += 1;
+  }
+  if (needBase) {
+    const tx = await baseC.approve.populateTransaction(cfg.router, ethers.MaxUint256);
+    const sent = await sendWithRetry(wallet, { ...tx, gasPrice, nonce: cs.nextNonce }, `${cfg.chainKey} approve base`);
+    log(`[${cfg.chainKey}] approve base sent ${sent.hash} nonce=${cs.nextNonce}`);
+    const rc = await sent.wait();
+    if (rc.status !== 1) throw new Error('base approve reverted');
+    cs.approveHashes.push(sent.hash);
+    cs.hashes.push(sent.hash);
+    cs.nextNonce += 1;
+  }
+  cs.approvesDone = true;
+  cs.txnsSubmitted = cs.tradeHashes.length;
+  cs.status = 'running';
+  save();
+  log(`[${cfg.chainKey}] approves done, nextNonce=${cs.nextNonce}`);
+}
+
+// V2 SELL-VERIFY micro-test: the only definitive honeypot check is a live
+// one — buy a dust amount of the new token, then immediately sell ALL of
+// it. Pass requires: buy receipt ok, sell quote > 0, sell receipt ok,
+// round-trip return >= 90% of the buy cost, and the token balance back
+// to ~0 afterwards. On failure the caller blacklists the token and falls
+// back to AGNA. Consumes 2 nonces (tracked in cs like approves).
+async function microTestPair({ provider, wallet, router, cfg, trade, cs, save, sendDelayMs = 0 }) {
+  const out = { passed: false, retryable: false, reason: '', buyHash: null, sellHash: null, returnBps: null };
+  const tokenC = tokenContractFull(trade.token, provider);
+  const pairC = pairContract(trade.pair, provider);
+  try {
+    // (a) Static pre-checks — no gas spent.
+    if ((await provider.getCode(trade.token)) === '0x') { out.reason = 'token has no code'; return out; }
+    const [sym, dec, supply, reserves] = await Promise.all([
+      tokenC.symbol().catch(() => null), tokenC.decimals().catch(() => null),
+      tokenC.totalSupply().catch(() => 0n), pairC.getReserves(),
+    ]);
+    if (sym === null || dec === null) { out.reason = 'token symbol/decimals unreadable'; return out; }
+    if (supply === 0n) { out.reason = 'token totalSupply is 0'; return out; }
+    if (reserves[0] === 0n || reserves[1] === 0n) { out.reason = 'pair has zero liquidity on one side'; return out; }
+    // V2 (2026-11-19 fix): the checkpoint nonce can be stale — a
+    // previous run may have sent txns that never reached a checkpoint
+    // (see the catch fix). Re-read the live pending nonce and use the
+    // freshest one, so the buy cannot collide with an already-mined txn.
+    const liveNonce = await provider.getTransactionCount(BURNER, 'pending');
+    if (liveNonce > cs.nextNonce) {
+      log(`[${cfg.chainKey}] micro-test nonce fast-forward: checkpoint ${cs.nextNonce} -> live ${liveNonce}`);
+      cs.nextNonce = liveNonce;
+    }
+    // (b) Live micro-test: dust buy = 20% of a normal round.
+    const dustIn = cfg.buyWithERC20
+      ? parseToDecimals(trade.tradeSize, cfg.baseDecimals ?? 18) / 5n
+      : ethers.parseEther(trade.tradeSize) / 5n;
+    const buyQuote = await router.getAmountsOut(dustIn, [cfg.baseToken, trade.token]);
+    const buyOut = buyQuote[buyQuote.length - 1];
+    if (buyOut === 0n) { out.reason = 'buy quote is 0'; return out; }
+    const buyMinOut = applySlippage(buyOut, BUY_SLIPPAGE_BPS);
+    const tokenBalBefore = await tokenC.balanceOf(BURNER);
+    const baseBalBefore = await provider.getBalance(BURNER);
+    const gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${cfg.chainKey} micro-test gas price`);
+    let buyTx;
+    if (cfg.buyWithERC20) {
+      buyTx = await router.swapExactTokensForTokens.populateTransaction(dustIn, buyMinOut, [cfg.baseToken, trade.token], BURNER, deadline());
+    } else {
+      buyTx = await router.swapExactETHForTokens.populateTransaction(buyMinOut, [cfg.baseToken, trade.token], BURNER, deadline(), { value: dustIn });
+    }
+    let buyGas;
+    try { buyGas = (await provider.estimateGas({ ...buyTx, from: BURNER })) * 120n / 100n; } catch { buyGas = 200000n; }
+    const buySent = await sendWithRetry(wallet, { ...buyTx, gasPrice, gasLimit: buyGas, nonce: cs.nextNonce }, `${cfg.chainKey} micro-test buy ${trade.tokenSymbol}`);
+    out.buyHash = buySent.hash;
+    cs.hashes.push(buySent.hash);
+    cs.nextNonce += 1;
+    save();
+    if (sendDelayMs > 0) await sleep(sendDelayMs);
+    const buyRc = await buySent.wait();
+    if (buyRc.status !== 1) { out.reason = 'micro-test buy reverted'; return out; }
+    out.buyGasUsed = buyRc.gasUsed.toString();
+    const tokenBalAfterBuy = await tokenC.balanceOf(BURNER);
+    const gained = tokenBalAfterBuy - tokenBalBefore;
+    if (gained <= 0n) { out.reason = 'micro-test buy delivered 0 tokens'; return out; }
+    // (c) Immediately sell ALL of what the buy delivered.
+    let sellQuote;
+    try {
+      sellQuote = await router.getAmountsOut(gained, [trade.token, cfg.baseToken]);
+    } catch (e) { out.reason = `sell quote reverted: ${(e.shortMessage || e.message || '').slice(0, 120)}`; return out; }
+    const sellOut = sellQuote[sellQuote.length - 1];
+    if (sellOut === 0n) { out.reason = 'sell quote is 0 — token cannot be sold (honeypot signature)'; return out; }
+    out.returnBps = Number((sellOut * 10000n) / dustIn);
+    if (out.returnBps < 9000) { out.reason = `round-trip return ${out.returnBps} bps < 9000`; return out; }
+    const sellMinOut = applySlippage(sellOut, SELL_SLIPPAGE_BPS);
+    let sellTx;
+    if (cfg.buyWithERC20) {
+      sellTx = await router.swapExactTokensForTokens.populateTransaction(gained, sellMinOut, [trade.token, cfg.baseToken], BURNER, deadline());
+    } else {
+      sellTx = await router.swapExactTokensForETH.populateTransaction(gained, sellMinOut, [trade.token, cfg.baseToken], BURNER, deadline());
+    }
+    let sellGas;
+    try { sellGas = (await provider.estimateGas({ ...sellTx, from: BURNER })) * 120n / 100n; } catch { sellGas = 200000n; }
+    const sellSent = await sendWithRetry(wallet, { ...sellTx, gasPrice, gasLimit: sellGas, nonce: cs.nextNonce }, `${cfg.chainKey} micro-test sell ${trade.tokenSymbol}`);
+    out.sellHash = sellSent.hash;
+    cs.hashes.push(sellSent.hash);
+    cs.nextNonce += 1;
+    save();
+    if (sendDelayMs > 0) await sleep(sendDelayMs);
+    const sellRc = await sellSent.wait();
+    if (sellRc.status !== 1) { out.reason = 'micro-test sell reverted — token cannot be sold (honeypot signature)'; return out; }
+    out.sellGasUsed = sellRc.gasUsed.toString();
+    const tokenBalAfterSell = await tokenC.balanceOf(BURNER);
+    if (tokenBalAfterSell - tokenBalBefore > gained / 100n) { out.reason = 'micro-test sell left >1% of bought tokens behind'; return out; }
+    const baseBalAfter = await provider.getBalance(BURNER);
+    const gasSpentMicro = (buyRc.gasUsed * buyRc.gasPrice) + (sellRc.gasUsed * sellRc.gasPrice);
+    if (baseBalAfter + gasSpentMicro <= baseBalBefore) { out.reason = 'sell proceeds never arrived in base balance'; return out; }
+    out.passed = true;
+    out.reason = `buy+sell ok, return ${out.returnBps} bps`;
+    return out;
+  } catch (e) {
+    const msg = (e.shortMessage || e.message || String(e));
+    out.reason = msg.slice(0, 200);
+    // V2 (2026-11-19 fix): a nonce collision is an infrastructure /
+    // stale-checkpoint error, NOT a token failure. Never blacklist on
+    // it — the caller retries once after re-syncing, then defers the
+    // micro-test and relies on the per-round sell-quote gates.
+    if (/nonce|already known|replacement/i.test(msg)) out.retryable = true;
+    return out;
+  }
+}
+
 async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = TARGET_ROUNDS, resumeOnly = false, sendDelayMs = 0 } = {}) {
   const pk = loadPrivateKey();
   const cfg = loadConfig({
@@ -334,37 +563,68 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
   req.timeout = 120000;
   const provider = new ethers.JsonRpcProvider(req);
   const wallet = new ethers.Wallet(pk, provider);
-  const agnaAddr = AGNA[chainKey];
-  const pairAddr = PAIRS[chainKey];
+  // V2: resolve which pair this chain trades. On resume, the pair stored
+  // in the checkpoint wins — never switch pairs mid-batch. Otherwise the
+  // pairs-v2.json entry (or the AGNA fallback) decides.
+  const state0 = loadState();
+  const cs0 = state0.chains[chainKey];
+  const batchInFlight0 = !!(cs0 && cs0.batchTarget != null && cs0.roundsDone < cs0.batchTarget);
+  let trade = (batchInFlight0 && cs0.tradeToken && cs0.tradePair)
+    ? {
+        token: cs0.tradeToken, tokenSymbol: cs0.tradeSymbol || 'AGNA',
+        tokenDecimals: cs0.tradeDecimals ?? 18, pair: cs0.tradePair,
+        pairName: cs0.tradePairName || '', sellOfQuoteBps: cs0.tradeSellBps ?? SELL_OF_QUOTE_BPS,
+        minReturnBps: cs0.tradeMinReturnBps ?? 8000,
+        tradeSize: cs0.tradeSize || TRADE_SIZE[chainKey],
+        // V2: on resume, the micro-test counts as passed ONLY if the
+        // checkpoint records a passed micro-test for this pair. A batch
+        // that died before the micro-test ran must re-run it.
+        // EXCEPT the AGNA pair: it is pre-verified by live trading and
+        // must never be micro-tested — a failed micro-test record for
+        // AGNA can only be a nonce/infra error (2026-11-19), never a
+        // sell-ability signal, and re-testing it every resume would
+        // spam dust trades.
+        verified: true,
+        microTested: (cs0.tradeToken && cs0.tradeToken.toLowerCase() === AGNA[chainKey].toLowerCase())
+          ? true
+          : !!(cs0.microTest && cs0.microTest.passed) || !!cs0.microTestDeferredAt,
+        source: 'batch-resume',
+      }
+    : tradeCfgFor(chainKey);
+  let tokenAddr = trade.token;
+  let pairAddr = trade.pair;
   const router = routerContract(cfg.router, provider);
-  const agnaC = tokenContractFull(agnaAddr, provider);
-  const pairC = pairContract(pairAddr, provider);
-  const baseC = tokenContract(cfg.baseToken, provider);
-  const amountIn = cfg.buyWithERC20
-    ? parseToDecimals(TRADE_SIZE[chainKey], cfg.baseDecimals ?? 18)
-    : ethers.parseEther(TRADE_SIZE[chainKey]);
+  let pairC = pairContract(pairAddr, provider);
+  let amountIn = cfg.buyWithERC20
+    ? parseToDecimals(trade.tradeSize, cfg.baseDecimals ?? 18)
+    : ethers.parseEther(trade.tradeSize);
+  // V2: actual per-leg gas from a passed micro-test (ground truth for
+  // the budget gate — estimateGas overstates this pair, see below).
+  let measuredEst = null;
 
   if (verifyOnly) return verifyChain(provider, cfg, chainKey);
 
   // ---- smoke: quote + build one round trip, send nothing ----
   if (smoke) {
-    const base = await readBaseline(provider, cfg);
-    log(`[smoke:${chainKey}] nonce=${base.startNonce} native=${ethers.formatEther(base.nativeBalance)} AGNA=${formatDecimals(BigInt(base.agnaBalance), 18)} supply=${formatDecimals(BigInt(base.agnaTotalSupply), 18)}`);
+    const base = await readBaseline(provider, cfg, trade);
+    log(`[smoke:${chainKey}] pair ${trade.pairName || trade.pair} token=${trade.tokenSymbol} (${trade.token})`);
+    log(`[smoke:${chainKey}] nonce=${base.startNonce} native=${ethers.formatEther(base.nativeBalance)} ${trade.tokenSymbol}=${formatDecimals(BigInt(base.tokenBalance), trade.tokenDecimals)} supply=${formatDecimals(BigInt(base.tokenTotalSupply), trade.tokenDecimals)}`);
     log(`[smoke:${chainKey}] reserves r0=${base.reserve0} r1=${base.reserve1}`);
-    const amounts = await router.getAmountsOut(amountIn, [cfg.baseToken, agnaAddr]);
+    const amounts = await router.getAmountsOut(amountIn, [cfg.baseToken, tokenAddr]);
     const quotedOut = amounts[amounts.length - 1];
     const buyMinOut = applySlippage(quotedOut, BUY_SLIPPAGE_BPS);
-    log(`[smoke:${chainKey}] buy ${TRADE_SIZE[chainKey]} ${cfg.nativeSymbol} -> quoted ${formatDecimals(quotedOut, 18)} AGNA, minOut ${formatDecimals(buyMinOut, 18)}`);
-    const sellAmount = (quotedOut * BigInt(SELL_OF_QUOTE_BPS)) / 10000n;
-    const sellAmounts = await router.getAmountsOut(sellAmount, [agnaAddr, cfg.baseToken]);
+    log(`[smoke:${chainKey}] buy ${trade.tradeSize} ${cfg.nativeSymbol} -> quoted ${formatDecimals(quotedOut, trade.tokenDecimals)} ${trade.tokenSymbol}, minOut ${formatDecimals(buyMinOut, trade.tokenDecimals)}`);
+    const sellAmount = (quotedOut * BigInt(trade.sellOfQuoteBps)) / 10000n;
+    const sellAmounts = await router.getAmountsOut(sellAmount, [tokenAddr, cfg.baseToken]);
     const sellQuoted = sellAmounts[sellAmounts.length - 1];
     const sellMinOut = applySlippage(sellQuoted, SELL_SLIPPAGE_BPS);
-    log(`[smoke:${chainKey}] sell ${formatDecimals(sellAmount, 18)} AGNA (${SELL_OF_QUOTE_BPS / 100}% of quoted buy) -> quoted ${formatDecimals(sellQuoted, cfg.baseDecimals ?? 18)} ${cfg.baseSymbol}, minOut ${formatDecimals(sellMinOut, cfg.baseDecimals ?? 18)}`);
-    log(`[smoke:${chainKey}] est. burn/round-trip ~${formatDecimals((quotedOut * 386n) / 10000n, 18)} AGNA (buy tax 2% + sell tax ~1.86% of quote)`);
+    const returnBps = amountIn > 0n ? Number((sellQuoted * 10000n) / amountIn) : 0;
+    log(`[smoke:${chainKey}] sell ${formatDecimals(sellAmount, trade.tokenDecimals)} ${trade.tokenSymbol} (${trade.sellOfQuoteBps / 100}% of quoted buy) -> quoted ${formatDecimals(sellQuoted, cfg.baseDecimals ?? 18)} ${cfg.baseSymbol}, minOut ${formatDecimals(sellMinOut, cfg.baseDecimals ?? 18)}`);
+    log(`[smoke:${chainKey}] round-trip return ${returnBps} bps (min ${trade.minReturnBps})`);
     const gasPrice = await fetchGasPrice(provider, cfg);
     log(`[smoke:${chainKey}] gasPrice ${ethers.formatUnits(gasPrice, 'gwei')} gwei (live, floored, +10%)`);
     log(`[smoke:${chainKey}] OK — no transactions sent`);
-    return { chain: chainKey, smoke: true, quotedOut: quotedOut.toString(), sellAmount: sellAmount.toString() };
+    return { chain: chainKey, smoke: true, pair: trade.pair, token: trade.token, quotedOut: quotedOut.toString(), sellAmount: sellAmount.toString(), returnBps };
   }
 
   // ---- live run ----
@@ -373,6 +633,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
   const state = loadState();
   const cs = chainState(state, chainKey);
   DIRTY_CHAINS.add(chainKey);
+  const save = () => saveState(state);
   try {
     if (cs.status === 'stopped') { log(`[${chainKey}] previously stopped: ${cs.stopReason} — not auto-resuming a stopped chain`); return { chain: chainKey, stopped: true, reason: cs.stopReason }; }
 
@@ -385,50 +646,110 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       cs.batchStart = cs.roundsDone;
       cs.batchTarget = cs.roundsDone + rounds;
       cs.status = 'running';
+      // V2: pin the pair for this batch (a resume keeps the same pair).
+      cs.tradeToken = trade.token;
+      cs.tradeSymbol = trade.tokenSymbol;
+      cs.tradeDecimals = trade.tokenDecimals;
+      cs.tradePair = trade.pair;
+      cs.tradePairName = trade.pairName || '';
+      cs.tradeSellBps = trade.sellOfQuoteBps;
+      cs.tradeMinReturnBps = trade.minReturnBps;
+      cs.tradeSize = trade.tradeSize;
       saveState(state);
-      log(`[${chainKey}] new batch: ${rounds} rounds (cumulative ${cs.batchStart} -> ${cs.batchTarget})`);
+      log(`[${chainKey}] new batch: ${rounds} rounds (cumulative ${cs.batchStart} -> ${cs.batchTarget}) pair=${trade.pairName || trade.pair} token=${trade.tokenSymbol}`);
     } else {
       cs.status = 'running';
       saveState(state);
-      log(`[${chainKey}] resuming batch: ${cs.roundsDone - cs.batchStart}/${cs.batchTarget - cs.batchStart} rounds done (cumulative target ${cs.batchTarget})`);
+      log(`[${chainKey}] resuming batch: ${cs.roundsDone - cs.batchStart}/${cs.batchTarget - cs.batchStart} rounds done (cumulative target ${cs.batchTarget}) pair=${cs.tradePairName || cs.tradePair || trade.pair}`);
     }
 
-    // Baseline + approves (once).
-    if (!cs.baseline) {
-      cs.baseline = await readBaseline(provider, cfg);
+    // V2: a new batch always refreshes the baseline for the CURRENT pair
+    // and re-syncs the nonce to the live pending nonce — external txns
+    // (e.g. Florin trove/faucet calls) may have consumed nonces since
+    // the last batch, and reserves/token balances move between batches.
+    if (!batchInFlight) {
+      cs.baseline = await readBaseline(provider, cfg, trade);
+      cs.nextNonce = cs.baseline.startNonce;
+      cs.approvesDone = false;
+      cs.gasBudget = { date: todayKey(), spentWei: '0' };
+      saveState(state);
+      log(`[${chainKey}] baseline (new batch) nonce=${cs.baseline.startNonce} native=${ethers.formatEther(cs.baseline.nativeBalance)} ${trade.tokenSymbol}=${formatDecimals(BigInt(cs.baseline.tokenBalance), trade.tokenDecimals)} supply=${formatDecimals(BigInt(cs.baseline.tokenTotalSupply), trade.tokenDecimals)}`);
+    } else if (!cs.baseline) {
+      cs.baseline = await readBaseline(provider, cfg, trade);
       cs.nextNonce = cs.baseline.startNonce;
       saveState(state);
-      log(`[${chainKey}] baseline nonce=${cs.baseline.startNonce} native=${ethers.formatEther(cs.baseline.nativeBalance)} AGNA=${formatDecimals(BigInt(cs.baseline.agnaBalance), 18)} supply=${formatDecimals(BigInt(cs.baseline.agnaTotalSupply), 18)}`);
+      log(`[${chainKey}] baseline nonce=${cs.baseline.startNonce} native=${ethers.formatEther(cs.baseline.nativeBalance)} ${trade.tokenSymbol}=${formatDecimals(BigInt(cs.baseline.tokenBalance), trade.tokenDecimals)}`);
     }
     if (!cs.approvesDone) {
-      const needAgna = (await agnaC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
-      const needBase = cfg.buyWithERC20 && (await baseC.allowance(BURNER, cfg.router)) < ethers.MaxUint256 / 2n;
-      const gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
-      if (needAgna) {
-        const tx = await agnaC.approve.populateTransaction(cfg.router, ethers.MaxUint256);
-        const sent = await sendWithRetry(wallet, { ...tx, gasPrice, nonce: cs.nextNonce }, `${chainKey} approve AGNA`);
-        log(`[${chainKey}] approve AGNA sent ${sent.hash} nonce=${cs.nextNonce}`);
-        const rc = await sent.wait();
-        if (rc.status !== 1) throw new Error('AGNA approve reverted');
-        cs.approveHashes.push(sent.hash);
-        cs.hashes.push(sent.hash);
-        cs.nextNonce += 1;
+      await approveForTrade({ provider, wallet, cfg, trade, cs, save });
+    }
+
+    // V2: on resume, recover the micro-test's actual gas for the gate.
+    if (!measuredEst && cs.microTest && cs.microTest.passed && cs.microTest.buyGasUsed && cs.microTest.sellGasUsed) {
+      measuredEst = { buy: BigInt(cs.microTest.buyGasUsed), sell: BigInt(cs.microTest.sellGasUsed) };
+    }
+
+    // V2: live micro-test for a new pair (AGNA pairs are pre-verified).
+    // On a REAL failure (sell reverted / quote 0 / return < 90%):
+    // blacklist the token, fall back to AGNA, re-setup. On a RETRYABLE
+    // failure (nonce collision — infra, not the token): retry once
+    // after re-syncing, then DEFER without blacklisting — sell-ability
+    // was never tested, and the per-round sell-quote gates still guard
+    // every round. The deferral is recorded so a resume does not
+    // re-test in a loop; the next NEW batch re-tests the pair.
+    if (!trade.microTested) {
+      let mt = await microTestPair({ provider, wallet, router, cfg, trade, cs, save, sendDelayMs });
+      if (!mt.passed && mt.retryable) {
+        log(`[${chainKey}] micro-test hit a nonce collision (retryable, not a token failure) — re-syncing nonce and retrying once`);
+        cs.nextNonce = await provider.getTransactionCount(BURNER, 'pending');
+        saveState(state);
+        mt = await microTestPair({ provider, wallet, router, cfg, trade, cs, save, sendDelayMs });
       }
-      if (needBase) {
-        const tx = await baseC.approve.populateTransaction(cfg.router, ethers.MaxUint256);
-        const sent = await sendWithRetry(wallet, { ...tx, gasPrice, nonce: cs.nextNonce }, `${chainKey} approve base`);
-        log(`[${chainKey}] approve base sent ${sent.hash} nonce=${cs.nextNonce}`);
-        const rc = await sent.wait();
-        if (rc.status !== 1) throw new Error('base approve reverted');
-        cs.approveHashes.push(sent.hash);
-        cs.hashes.push(sent.hash);
-        cs.nextNonce += 1;
-      }
-      cs.approvesDone = true;
-      cs.txnsSubmitted = cs.tradeHashes.length;
-      cs.status = 'running';
+      cs.microTest = { pair: trade.pair, token: trade.token, ...mt, at: new Date().toISOString() };
       saveState(state);
-      log(`[${chainKey}] approves done, nextNonce=${cs.nextNonce}`);
+      if (!mt.passed) {
+        if (mt.retryable) {
+          cs.microTestDeferredAt = new Date().toISOString();
+          saveState(state);
+          log(`[${chainKey}] MICRO-TEST DEFERRED for ${trade.tokenSymbol}: ${mt.reason} — proceeding without blacklist; per-round sell gates remain active`);
+        } else {
+        log(`[${chainKey}] MICRO-TEST FAILED for ${trade.tokenSymbol} (${trade.token}): ${mt.reason} — blacklisting, falling back to AGNA`);
+        blacklistToken(trade.token, `micro-test failed: ${mt.reason}`);
+        trade = tradeCfgFor(chainKey); // AGNA fallback now
+        tokenAddr = trade.token;
+        pairAddr = trade.pair;
+        pairC = pairContract(pairAddr, provider);
+        amountIn = cfg.buyWithERC20
+          ? parseToDecimals(trade.tradeSize, cfg.baseDecimals ?? 18)
+          : ethers.parseEther(trade.tradeSize);
+        cs.tradeToken = trade.token;
+        cs.tradeSymbol = trade.tokenSymbol;
+        cs.tradeDecimals = trade.tokenDecimals;
+        cs.tradePair = trade.pair;
+        cs.tradePairName = trade.pairName || '';
+        cs.tradeSellBps = trade.sellOfQuoteBps;
+        cs.tradeMinReturnBps = trade.minReturnBps;
+        cs.tradeSize = trade.tradeSize;
+        cs.baseline = await readBaseline(provider, cfg, trade);
+        cs.nextNonce = cs.baseline.startNonce;
+        cs.approvesDone = false;
+        saveState(state);
+        log(`[${chainKey}] fallback baseline nonce=${cs.baseline.startNonce} pair=${trade.pair}`);
+        await approveForTrade({ provider, wallet, cfg, trade, cs, save });
+        }
+      } else {
+        const doc = loadPairsV2();
+        if (doc.chains[chainKey]) {
+          doc.chains[chainKey].microTested = true;
+          doc.chains[chainKey].microTest = { ...mt, at: new Date().toISOString() };
+          savePairsV2(doc);
+        }
+        // Ground truth for the budget gate: the micro-test's ACTUAL gas.
+        if (mt.buyGasUsed && mt.sellGasUsed) {
+          measuredEst = { buy: BigInt(mt.buyGasUsed), sell: BigInt(mt.sellGasUsed) };
+        }
+        log(`[${chainKey}] MICRO-TEST PASSED for ${trade.tokenSymbol}: ${mt.reason} buy=${mt.buyHash} sell=${mt.sellHash}`);
+      }
     }
 
     // Resume: fill any nonce gaps left by an interrupted run.
@@ -447,12 +768,29 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
         cs.txnsSubmitted = cs.tradeHashes.length;
         cs.status = 'running';
         saveState(state);
+      } else if (pendingNonce > cs.nextNonce) {
+        // V2: nonces were consumed outside this script (external wallet
+        // txns, or sniper txns sent but not checkpointed before a kill).
+        // Those nonces are already submitted — fast-forward, never
+        // re-send them (re-sending would fail "nonce too low").
+        log(`[${chainKey}] nonce fast-forward: live pending nonce=${pendingNonce} > checkpoint nextNonce=${cs.nextNonce} — skipping ${pendingNonce - cs.nextNonce} consumed nonce(s)`);
+        cs.nextNonce = pendingNonce;
+        cs.txnsSubmitted = cs.tradeHashes.length;
+        cs.status = 'running';
+        saveState(state);
       }
     }
 
     // Gas limits: estimate once from the first round's txs, reuse after.
+    // buyGasEst/sellGasEst hold the RAW estimates (no buffer) — the
+    // budget gate prices the round trip at the expected ACTUAL cost.
+    // The 1.2x-buffered limits are for execution safety only; pricing
+    // the gate off them would overstate the cost ~1.32x (1.2x limit x
+    // 1.1x gas price) and trip the Arc per-round cap on a normal round.
     let buyGasLimit = null;
     let sellGasLimit = null;
+    let buyGasEst = null;
+    let sellGasEst = null;
     let gasPrice = await withRetry(() => fetchGasPrice(provider, cfg), `${chainKey} gas price`);
 
     const checkBrakes = async () => {
@@ -478,29 +816,83 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       heartbeatLock(chainKey);
       const round = cs.roundsDone;
 
+      // V2 GAS-BUDGET GATE: live gas vs ceiling, then estimated round
+      // cost vs the per-round cap and the daily budget. A hit stops the
+      // batch RESUMABLY (BUDGET: prefix) — the resume cron retries it.
+      {
+        const feeNow = await provider.getFeeData();
+        const liveGas = feeNow.gasPrice ?? feeNow.maxFeePerGas ?? 0n;
+        const ceiling = ethers.parseUnits(GAS_BUDGET[chainKey].ceilingGwei, 'gwei');
+        if (liveGas > ceiling) {
+          throw new Error(`BUDGET: live gas ${ethers.formatUnits(liveGas, 'gwei')} gwei exceeds ceiling ${GAS_BUDGET[chainKey].ceilingGwei} gwei on ${chainKey} — pausing batch (resumable)`);
+        }
+        const roundGas = (buyGasEst ?? MEASURED_ROUND_GAS[chainKey]) + (sellGasEst ?? 0n);
+        const estRoundCost = roundGas * gasPrice;
+        const perRoundCap = ethers.parseEther(GAS_BUDGET[chainKey].perRound);
+        if (estRoundCost > perRoundCap) {
+          throw new Error(`BUDGET: estimated round cost ${ethers.formatEther(estRoundCost)} exceeds per-round cap ${GAS_BUDGET[chainKey].perRound} on ${chainKey} — pausing batch (resumable)`);
+        }
+        const b = budgetState(cs);
+        const dailyBudget = ethers.parseEther(GAS_BUDGET[chainKey].daily);
+        if (BigInt(b.spentWei) + estRoundCost > dailyBudget) {
+          throw new Error(`BUDGET: daily gas budget hit on ${chainKey} (spent ${ethers.formatEther(BigInt(b.spentWei))} + est ${ethers.formatEther(estRoundCost)} > ${GAS_BUDGET[chainKey].daily}) — pausing batch until tomorrow (resumable)`);
+        }
+      }
+
       // Quote buy (fresh reserves every round).
-      const amounts = await withRetry(() => router.getAmountsOut(amountIn, [cfg.baseToken, agnaAddr]), `${chainKey} buy quote`);
+      const amounts = await withRetry(() => router.getAmountsOut(amountIn, [cfg.baseToken, tokenAddr]), `${chainKey} buy quote`);
       const quotedOut = amounts[amounts.length - 1];
       const buyMinOut = applySlippage(quotedOut, BUY_SLIPPAGE_BPS);
-      const sellAmount = (quotedOut * BigInt(SELL_OF_QUOTE_BPS)) / 10000n;
-      const sellAmounts = await withRetry(() => router.getAmountsOut(sellAmount, [agnaAddr, cfg.baseToken]), `${chainKey} sell quote`);
+      const sellAmount = (quotedOut * BigInt(trade.sellOfQuoteBps)) / 10000n;
+      // V2 SELL-VERIFY GATE: the sell quote must exist and the round
+      // trip must return at least the pair minimum (AGNA 80% — its 5%
+      // tax makes the normal return ~88%; other pairs 90%). A 0 or
+      // reverting quote, or a sub-minimum return, stops the chain
+      // immediately (SELL-VERIFY: prefix) and blacklists a non-AGNA
+      // token. Re-verified every round, including round 0 of each batch.
+      let sellAmounts;
+      try {
+        sellAmounts = await withRetry(() => router.getAmountsOut(sellAmount, [tokenAddr, cfg.baseToken]), `${chainKey} sell quote`);
+      } catch (e) {
+        if (trade.tokenSymbol !== 'AGNA') blacklistToken(trade.token, `sell quote reverted: ${(e.shortMessage || e.message || '').slice(0, 120)}`);
+        throw new Error(`SELL-VERIFY: sell quote reverted for ${trade.tokenSymbol} on ${chainKey} — stopping chain`);
+      }
       const sellQuoted = sellAmounts[sellAmounts.length - 1];
+      if (sellQuoted === 0n) {
+        if (trade.tokenSymbol !== 'AGNA') blacklistToken(trade.token, 'sell quote returned 0');
+        throw new Error(`SELL-VERIFY: sell quote is 0 for ${trade.tokenSymbol} on ${chainKey} — stopping chain`);
+      }
+      const returnBps = Number((sellQuoted * 10000n) / amountIn);
+      if (returnBps < trade.minReturnBps) {
+        if (trade.tokenSymbol !== 'AGNA') blacklistToken(trade.token, `round-trip return ${returnBps} bps < ${trade.minReturnBps}`);
+        throw new Error(`SELL-VERIFY: round-trip return ${returnBps} bps below minimum ${trade.minReturnBps} for ${trade.tokenSymbol} on ${chainKey} — stopping chain`);
+      }
       const sellMinOut = applySlippage(sellQuoted, SELL_SLIPPAGE_BPS);
 
       // Build buy + sell txs.
       let buyTx;
       let sellTx;
       if (cfg.buyWithERC20) {
-        buyTx = await router.swapExactTokensForTokens.populateTransaction(amountIn, buyMinOut, [cfg.baseToken, agnaAddr], BURNER, deadline());
-        sellTx = await router.swapExactTokensForTokens.populateTransaction(sellAmount, sellMinOut, [agnaAddr, cfg.baseToken], BURNER, deadline());
+        buyTx = await router.swapExactTokensForTokens.populateTransaction(amountIn, buyMinOut, [cfg.baseToken, tokenAddr], BURNER, deadline());
+        sellTx = await router.swapExactTokensForTokens.populateTransaction(sellAmount, sellMinOut, [tokenAddr, cfg.baseToken], BURNER, deadline());
       } else {
-        buyTx = await router.swapExactETHForTokens.populateTransaction(buyMinOut, [cfg.baseToken, agnaAddr], BURNER, deadline(), { value: amountIn });
-        sellTx = await router.swapExactTokensForETH.populateTransaction(sellAmount, sellMinOut, [agnaAddr, cfg.baseToken], BURNER, deadline());
+        buyTx = await router.swapExactETHForTokens.populateTransaction(buyMinOut, [cfg.baseToken, tokenAddr], BURNER, deadline(), { value: amountIn });
+        sellTx = await router.swapExactTokensForETH.populateTransaction(sellAmount, sellMinOut, [tokenAddr, cfg.baseToken], BURNER, deadline());
       }
       if (buyGasLimit === null) {
-        try { buyGasLimit = (await withRetry(() => provider.estimateGas({ ...buyTx, from: BURNER }), `${chainKey} buy gas estimate`)) * 120n / 100n; } catch { buyGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
-        try { sellGasLimit = (await withRetry(() => provider.estimateGas({ ...sellTx, from: BURNER }), `${chainKey} sell gas estimate`)) * 120n / 100n; } catch { sellGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; }
-        log(`[${chainKey}] gas limits buy=${buyGasLimit} sell=${sellGasLimit}`);
+        if (measuredEst) {
+          // Prefer the micro-test's ACTUAL gas: estimateGas overstates
+          // this pair (Sepolia WETH/USDC: 185k/291k estimated vs a
+          // ~143k/round measured reality on the AGNA pair).
+          buyGasEst = measuredEst.buy;
+          sellGasEst = measuredEst.sell;
+          buyGasLimit = buyGasEst * 120n / 100n;
+          sellGasLimit = sellGasEst * 120n / 100n;
+        } else {
+          try { buyGasEst = await withRetry(() => provider.estimateGas({ ...buyTx, from: BURNER }), `${chainKey} buy gas estimate`); buyGasLimit = buyGasEst * 120n / 100n; } catch { buyGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; buyGasEst = MEASURED_ROUND_GAS[chainKey] / 2n; }
+          try { sellGasEst = await withRetry(() => provider.estimateGas({ ...sellTx, from: BURNER }), `${chainKey} sell gas estimate`); sellGasLimit = sellGasEst * 120n / 100n; } catch { sellGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; sellGasEst = MEASURED_ROUND_GAS[chainKey] / 2n; }
+        }
+        log(`[${chainKey}] gas limits buy=${buyGasLimit} sell=${sellGasLimit} (est buy=${buyGasEst} sell=${sellGasEst})`);
       }
 
       const nonceBuy = cs.nextNonce;
@@ -522,6 +914,13 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       cs.nextNonce += 2;
       cs.txnsSubmitted = cs.tradeHashes.length;
       cs.roundsDone += 1;
+      // V2: accrue the estimated gas cost to the daily budget accumulator.
+      {
+        const b = budgetState(cs);
+        const roundGas = (buyGasEst ?? MEASURED_ROUND_GAS[chainKey]) + (sellGasEst ?? 0n);
+        b.spentWei = (BigInt(b.spentWei) + roundGas * gasPrice).toString();
+        if (cs.roundsDone % 5 === 0) { cs.updatedAt = new Date().toISOString(); saveState(state); }
+      }
       if (cs.roundsDone % CHECKPOINT_EVERY === 0 || cs.roundsDone === cs.batchTarget) {
         cs.updatedAt = new Date().toISOString();
         cs.errorCount = 0; // healthy progress — transient errors don't accumulate
@@ -550,14 +949,28 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
     log(`[${chainKey}] receipts: ${ok} ok, ${failed} failed, ${unmined.length} unmined. gasSpent=${ethers.formatEther(gasSpent)} ${cfg.nativeSymbol}`);
     return { chain: chainKey, done: cs.status === 'done', rounds: cs.roundsDone, ok, failed, unmined: unmined.length };
   } catch (e) {
-    const state2 = loadState();
-    const cs2 = chainState(state2, chainKey);
+    // V2 (2026-11-19 fix): use the IN-MEMORY state, not a fresh disk
+    // reload. The old code reloaded from disk here, silently discarding
+    // up to 25 rounds of progress (roundsDone, nextNonce, hashes) that
+    // had not reached a checkpoint yet — the next run then re-used a
+    // stale nonce and collided with the already-mined txns ("nonce has
+    // already been used"). saveState() merges only DIRTY_CHAINS, so
+    // other chains' disk entries are untouched by using the live state.
+    const cs2 = cs;
     DIRTY_CHAINS.add(chainKey);
     const msg = e.message || String(e);
-    if (msg.startsWith('BRAKE:')) {
+    if (msg.startsWith('BRAKE:') || msg.startsWith('SELL-VERIFY:')) {
       // Deliberate safety stop — terminal, never auto-resumed.
       cs2.status = 'stopped';
       cs2.stopReason = msg;
+    } else if (msg.startsWith('BUDGET:')) {
+      // V2 gas-budget pause — resumable: leave the batch in flight so
+      // the 5-min resume cron retries it (gas may drop; the daily
+      // budget resets at midnight). Does not count toward the 5-error
+      // stop, and does not clobber the batch target.
+      cs2.status = 'running';
+      cs2.stopReason = msg;
+      cs2.lastError = msg;
     } else {
       // Transient error (RPC drop, socket hang up, ...) — leave the
       // batch resumable; only stop after 5 consecutive failed runs.
@@ -572,7 +985,7 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       }
     }
     cs2.updatedAt = new Date().toISOString();
-    saveState(state2);
+    saveState(state);
     log(`[${chainKey}] ${cs2.status === 'stopped' ? 'STOPPED' : 'ERROR (will resume)'}: ${msg}`);
     return { chain: chainKey, stopped: cs2.status === 'stopped', reason: msg };
   } finally {
@@ -596,15 +1009,31 @@ async function verifyChain(provider, cfg, chainKey) {
     gasSpent += r.gasUsed * r.gasPrice;
   }
   const endNonce = await provider.getTransactionCount(BURNER, 'latest');
-  const agnaC = tokenContractFull(AGNA[chainKey], provider);
-  const pairC = pairContract(PAIRS[chainKey], provider);
-  const [finalSupply, finalAgnaBal, finalNative, reserves] = await Promise.all([
-    agnaC.totalSupply(), agnaC.balanceOf(BURNER), provider.getBalance(BURNER), pairC.getReserves(),
+  // V2: resolve the pair from the checkpoint (a V2 batch pins it) so
+  // verification reports the pair actually traded.
+  const vtrade = (cs.tradeToken && cs.tradePair)
+    ? { token: cs.tradeToken, tokenSymbol: cs.tradeSymbol || 'AGNA', tokenDecimals: cs.tradeDecimals ?? 18, pair: cs.tradePair, pairName: cs.tradePairName || '' }
+    : tradeCfgFor(chainKey);
+  const tokenC = tokenContractFull(vtrade.token, provider);
+  const pairC = pairContract(vtrade.pair, provider);
+  const [finalSupply, finalTokenBal, finalNative, reserves] = await Promise.all([
+    tokenC.totalSupply(), tokenC.balanceOf(BURNER), provider.getBalance(BURNER), pairC.getReserves(),
   ]);
-  const burned = BigInt(cs.baseline.agnaTotalSupply) - finalSupply;
+  // Old (pre-V2) baselines stored agnaBalance/agnaTotalSupply; V2 stores
+  // tokenBalance/tokenTotalSupply. Both describe the same traded token.
+  const baseTokenBal = BigInt(cs.baseline.tokenBalance ?? cs.baseline.agnaBalance ?? '0');
+  const baseSupply = BigInt(cs.baseline.tokenTotalSupply ?? cs.baseline.agnaTotalSupply ?? '0');
+  const supplyDelta = baseSupply - finalSupply; // >0 means supply shrank (AGNA burn)
+  const tokenDelta = finalTokenBal - baseTokenBal;
   const summary = {
     chain: chainKey,
+    pair: vtrade.pair,
+    pairName: vtrade.pairName,
+    token: vtrade.token,
+    tokenSymbol: vtrade.tokenSymbol,
     roundsDone: cs.roundsDone,
+    batchStart: cs.batchStart,
+    batchTarget: cs.batchTarget,
     tradingTxnsSubmitted: cs.txnsSubmitted,
     approves: cs.approveHashes.length,
     fillers: cs.fillers.length,
@@ -616,14 +1045,18 @@ async function verifyChain(provider, cfg, chainKey) {
     nonceDelta: endNonce - cs.baseline.startNonce,
     gasSpent: ethers.formatEther(gasSpent),
     gasSymbol: cfg.nativeSymbol,
-    agnaBurned: formatDecimals(burned, 18),
-    agnaBurnedPctOfSupply: (Number(burned) / Number(BigInt(cs.baseline.agnaTotalSupply)) * 100).toFixed(2),
-    finalAgnaBalance: formatDecimals(finalAgnaBal, 18),
+    gasBudget: cs.gasBudget || null,
+    gasBudgetDaily: GAS_BUDGET[chainKey].daily,
+    tokenSupplyDelta: formatDecimals(supplyDelta, vtrade.tokenDecimals),
+    tokenSupplyDeltaPct: baseSupply > 0n ? (Number(supplyDelta) / Number(baseSupply) * 100).toFixed(2) : '0.00',
+    finalTokenBalance: formatDecimals(finalTokenBal, vtrade.tokenDecimals),
+    tokenBalanceDelta: formatDecimals(tokenDelta, vtrade.tokenDecimals),
     finalNativeBalance: ethers.formatEther(finalNative),
     finalReserve0: reserves[0].toString(),
     finalReserve1: reserves[1].toString(),
     baselineReserve0: cs.baseline.reserve0,
     baselineReserve1: cs.baseline.reserve1,
+    microTest: cs.microTest || null,
     firstBuyHash: cs.firstBuyHash,
     firstSellHash: cs.firstSellHash,
     lastBuyHash: cs.lastBuyHash,

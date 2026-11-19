@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "tokens": [
+    "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+    "0xa69000408a00f35f70c5dd5f73e8c687514bf522"
+  ],
+  "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238": {
+    "reason": "micro-test failed: sepolia micro-test buy USDC: send failed after 3 attempts: nonce has already been used",
+    "at": "2026-11-19T11:10:09.333Z"
+  },
+  "0xa69000408a00f35f70c5dd5f73e8c687514bf522": {
+    "reason": "micro-test failed: sepolia micro-test buy AGNA: send failed after 3 attempts: nonce has already been used",
+    "at": "2026-11-19T11:10:35.222Z"
+  }
+}

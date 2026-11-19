@@ -1,0 +1,131 @@
+{
+  "version": 2,
+  "verifiedAt": "2026-11-19T10:58:18.938Z",
+  "chains": {
+    "sepolia": {
+      "factory": "0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
+      "router": "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3",
+      "candidates": [
+        {
+          "name": "WETH/USDC",
+          "tokenA": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+          "tokenB": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+          "exists": true,
+          "pair": "0x72e46e15ef83c896de44B1874B4AF7dDAB5b4F74",
+          "token0": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+          "token1": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+          "reserve0": "975696993812",
+          "reserve1": "31873804937566709933",
+          "tokenAMeta": {
+            "symbol": "WETH",
+            "decimals": 18,
+            "totalSupply": "192860386160486320854605"
+          },
+          "tokenBMeta": {
+            "symbol": "USDC",
+            "decimals": 6,
+            "totalSupply": "10742216205858758321"
+          },
+          "buyQuote": {
+            "in": "50000000000000",
+            "out": "1525968"
+          },
+          "sellQuote": {
+            "in": "1525968",
+            "out": "49700281796376"
+          },
+          "roundTripReturnBps": 9940
+        }
+      ],
+      "agnaFallback": {
+        "token": "0xA69000408A00F35F70C5dD5f73e8c687514BF522",
+        "pair": "0x43E54E53dafe9467725be66Aa34d799d0Ff6F630",
+        "reserve0": "334633554614501295315403271536606",
+        "reserve1": "21883156660557857"
+      }
+    },
+    "arc-testnet": {
+      "factory": "0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d",
+      "router": "0x96ec1BE94202E5F8b10123B1677A57E45b7BB9A7",
+      "candidates": [
+        {
+          "name": "USDC/WETH9",
+          "tokenA": "0x3600000000000000000000000000000000000000",
+          "tokenB": "0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+          "exists": false
+        }
+      ],
+      "factoryPairsCount": 1,
+      "factoryPairs": [
+        {
+          "pair": "0xba3746f46Fbfe22E4E17083F1769b359A0b8956a",
+          "token0": "0x3600000000000000000000000000000000000000",
+          "token1": "0xa69000Fb025DDe35F126332331c2746979845E56",
+          "reserve0": "64871315",
+          "reserve1": "358022288345695680697323984719919"
+        }
+      ],
+      "agnaFallback": {
+        "token": "0xa69000Fb025DDe35F126332331c2746979845E56",
+        "pair": "0xba3746f46Fbfe22E4E17083F1769b359A0b8956a",
+        "reserve0": "64871315",
+        "reserve1": "358022288345695680697323984719919"
+      }
+    },
+    "robinhood-testnet": {
+      "factory": "0xe9f116220486AB52b8D245aF3C19de5C025Adea8",
+      "router": "0x4524D50c3fa8aeA4f44db5EA1e02753cB0A8ac58",
+      "candidates": [
+        {
+          "name": "WETH9/FUSD",
+          "tokenA": "0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09",
+          "tokenB": "0x1f93de989cd9d30b2c31f3227769632729858196",
+          "exists": false
+        },
+        {
+          "name": "WETH9/SPY",
+          "tokenA": "0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09",
+          "tokenB": "0x8823b40A23387Df76E127744FFB38b26eB012A5c",
+          "exists": false
+        }
+      ],
+      "factoryPairsCount": 1,
+      "factoryPairs": [
+        {
+          "pair": "0x699d97ACc97bB067842Bbe8CE89dC52d805D0a22",
+          "token0": "0xa69000FF81232ac079eC2265fD4da3100F243fc3",
+          "token1": "0xf04aD68aCCaf3f7170C5588692F15e02b1B4BE09",
+          "reserve0": "366519638440731197150928395752524",
+          "reserve1": "2204052614760262"
+        }
+      ],
+      "agnaFallback": {
+        "token": "0xa69000FF81232ac079eC2265fD4da3100F243fc3",
+        "pair": "0x699d97ACc97bB067842Bbe8CE89dC52d805D0a22",
+        "reserve0": "366519638440731197150928395752524",
+        "reserve1": "2204052614760262"
+      }
+    },
+    "litvm-testnet": {
+      "factory": "0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce",
+      "router": "0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d",
+      "candidates": [],
+      "factoryPairsCount": 1,
+      "factoryPairs": [
+        {
+          "pair": "0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9",
+          "token0": "0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6",
+          "token1": "0xa69000FF81232ac079eC2265fD4da3100F243fc3",
+          "reserve0": "22024099694872825",
+          "reserve1": "368237670423701273187918030417587"
+        }
+      ],
+      "agnaFallback": {
+        "token": "0xa69000FF81232ac079eC2265fD4da3100F243fc3",
+        "pair": "0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9",
+        "reserve0": "22024099694872825",
+        "reserve1": "368237670423701273187918030417587"
+      }
+    }
+  }
+}
