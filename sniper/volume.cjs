@@ -26,6 +26,7 @@
  *   arc-testnet        0.01     USDC (ERC-20 path, 6 decimals)
  *   robinhood-testnet  0.000005 ETH (thinnest pool — do NOT raise)
  *   litvm-testnet      0.00005  zkLTC
+ *   base-sepolia       0.00005  ETH (same pool depth as LitVM)
  *
  * Sell size: 93% of the QUOTED buy output. Why not 98%: the AGNA token
  * takes a 5% transfer tax on buys, so the buyer actually receives only
@@ -91,18 +92,21 @@ const AGNA = {
   'arc-testnet': '0xa69000Fb025DDe35F126332331c2746979845E56',
   'robinhood-testnet': '0xa69000FF81232ac079eC2265fD4da3100F243fc3',
   'litvm-testnet': '0xa69000FF81232ac079eC2265fD4da3100F243fc3',
+  'base-sepolia': '0xa69000FF81232ac079eC2265fD4da3100F243fc3',
 };
 const PAIRS = {
   sepolia: '0x43E54E53dafe9467725be66Aa34d799d0Ff6F630',
   'arc-testnet': '0xba3746f46Fbfe22E4E17083F1769b359A0b8956a',
   'robinhood-testnet': '0x699d97ACc97bB067842Bbe8CE89dC52d805D0a22',
   'litvm-testnet': '0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9',
+  'base-sepolia': '0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9',
 };
 const TRADE_SIZE = {
   sepolia: '0.00005',
   'arc-testnet': '0.01',
   'robinhood-testnet': '0.000005',
   'litvm-testnet': '0.00005',
+  'base-sepolia': '0.00005',
 };
 const GAS_FLOOR_GWEI = {
   // Sepolia was 17 wei (0.000000017 gwei). On 2026-11-19 that left ~72 txns
@@ -117,6 +121,12 @@ const GAS_FLOOR_GWEI = {
   'arc-testnet': '31.625',
   'robinhood-testnet': '0.01',
   'litvm-testnet': '0.01',
+  // Base Sepolia live gas is ~0.006 gwei (micro-test 2026-11-20 paid
+  // exactly 0.006). Floor 0.001 gwei = ~10x the typical base fee here,
+  // so inclusion is safe; the 1.1x bump on live gas dominates anyway.
+  // A 0.01 floor would force 0.011 gwei/txn and nearly halve the
+  // ~11-day runway for no inclusion benefit.
+  'base-sepolia': '0.001',
 };
 // Stop the chain if the burner's gas balance falls under these.
 const GAS_BRAKE = {
@@ -124,6 +134,7 @@ const GAS_BRAKE = {
   'arc-testnet': ethers.parseUnits('5', 18),
   'robinhood-testnet': ethers.parseEther('0.001'),
   'litvm-testnet': ethers.parseEther('0.005'),
+  'base-sepolia': ethers.parseEther('0.001'),
 };
 const SELL_OF_QUOTE_BPS = 9300; // sell 93% of quoted buy output
 const BUY_SLIPPAGE_BPS = 500; // buy minOut = 95% of quote
@@ -182,6 +193,15 @@ const GAS_BUDGET = {
   'arc-testnet': { daily: '5', perRound: '0.01', ceilingGwei: '100' },
   'robinhood-testnet': { daily: '0.0015', perRound: '0.000005', ceilingGwei: '0.1' },
   'litvm-testnet': { daily: '0.0015', perRound: '0.000005', ceilingGwei: '0.1' },
+  // Base Sepolia (added 2026-11-20, 5th chain). Caps from MEASURED data:
+  // micro-test receipts 2026-11-20: 262,070 gas/round @ 0.006 gwei =
+  // 0.00000157 ETH/round true cost. Per-round cap 0.000005 = ~3.2x true
+  // cost — headroom for estimateGas overstating ~1.5x (est ~390k gas x
+  // 0.0066 gwei floored = ~0.0000026) and live gas up to ~0.013 gwei.
+  // Daily 0.002 = 500 rounds x 0.000004; true daily at live gas
+  // ~0.00087 ETH. NEVER set perRound below measured true cost — that
+  // exact mistake paused Sepolia (cap 0.000005 vs true 0.0000068).
+  'base-sepolia': { daily: '0.002', perRound: '0.000005', ceilingGwei: '0.1' },
 };
 // Measured per-round gas (total, both swaps) — sampled from REAL
 // receipts of the 2026-11-19 run (8-txn sample: 133,890–158,706 gas
@@ -192,7 +212,7 @@ const GAS_BUDGET = {
 // is ~285k gas/round (~0.0000063 ETH). Arc/RH/LitVM figures are the
 // same derivation and are approximate (their gas prices were
 // floor-dominated all day, so they are closer to true).
-const MEASURED_ROUND_GAS = { sepolia: 285000n, 'arc-testnet': 266000n, 'robinhood-testnet': 229000n, 'litvm-testnet': 230000n };
+const MEASURED_ROUND_GAS = { sepolia: 285000n, 'arc-testnet': 266000n, 'robinhood-testnet': 229000n, 'litvm-testnet': 230000n, 'base-sepolia': 262000n };
 function todayKey() { return new Date().toISOString().slice(0, 10); }
 function budgetState(cs) {
   if (!cs.gasBudget || cs.gasBudget.date !== todayKey()) cs.gasBudget = { date: todayKey(), spentWei: '0' };
@@ -230,7 +250,7 @@ function parseArgs(argv) {
       if (!Number.isFinite(args.rounds) || args.rounds <= 0) throw new Error('--rounds must be a positive integer');
     }
   }
-  if (!args.chain) throw new Error('Usage: node volume.cjs --chain <sepolia|arc-testnet|robinhood-testnet|litvm-testnet|all> [--rounds N] [--resume-only] [--send-delay-ms N] [--smoke|--verify]');
+  if (!args.chain) throw new Error('Usage: node volume.cjs --chain <sepolia|arc-testnet|robinhood-testnet|litvm-testnet|base-sepolia|all> [--rounds N] [--resume-only] [--send-delay-ms N] [--smoke|--verify]');
   return args;
 }
 
@@ -1070,7 +1090,7 @@ async function verifyChain(provider, cfg, chainKey) {
 async function main() {
   const args = parseArgs(process.argv);
   const chains = args.chain === 'all'
-    ? ['sepolia', 'arc-testnet', 'robinhood-testnet', 'litvm-testnet']
+    ? ['sepolia', 'arc-testnet', 'robinhood-testnet', 'litvm-testnet', 'base-sepolia']
     : [args.chain];
   const results = [];
   for (const c of chains) {

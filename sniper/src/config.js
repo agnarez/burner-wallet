@@ -34,9 +34,11 @@
  *     receipt 0x1; the rest went to the AGNA token/NFT deploys), so
  *     Sepolia is a usable live testnet target alongside Arc Testnet.
  *     The agent wallet holds 0 ETH.
- *   - Base Sepolia: no V2 at the known addresses (the Base-mainnet
- *     factory address has no code; the contract at the mainnet router
- *     address is not a V2 router), and no gas either.
+ *   - Base Sepolia: AGNAmuse V2 deployed 2026-11-20 (factory 0x4AcDba…,
+ *     router 0x87125a…, WETH9 0x774eF4…); AGNA/WETH9 pool 0xE887Aa…
+ *     (359.964T AGNA + 0.0202 ETH). Burner holds 0.0094165 ETH gas.
+ *     No canonical Uniswap here — our factory is the only V2.
+ *     Added to the daily volume run 2026-11-20 (5th chain).
  *   - LitVM testnet ("LiteForge", Litecoin's EVM rollup, verified
  *     2026-11-18): chain 4441, gas token zkLTC, RPC
  *     https://rpc.testnet.liteforge.zeeve.net/. Our own AGNAmuse V2
@@ -132,19 +134,28 @@ const CHAINS = {
     name: 'Base Sepolia',
     chainId: 84532,
     rpc: 'https://sepolia.base.org',
-    // No Uniswap V2 at the known addresses (checked 2026-11-18): the
-    // Base-mainnet factory address has no code here, and the contract at
-    // the mainnet router address is not a V2 router (factory()/WETH()
-    // revert). Uniswap's deployment list does not include Base Sepolia.
-    baseToken: null,
+    // AGNAmuse V2 — our own deployment, verified live 2026-11-20:
+    // factory 0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce
+    // (same address as LitVM's factory — same deployer + nonce sequence),
+    // router 0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d
+    // (same address as LitVM's router),
+    // WETH9 0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6.
+    // The AGNA pool (0xE887AaA2f85Ed40e68A5cf19F986EC460ccCC7E9,
+    // 359.964T AGNA + 0.0202 ETH) pairs AGNA against WETH9, so the
+    // native buy path works as-is (swapExactETHForTokens, path [WETH9, token]).
+    // Micro-test round trip PROVEN 2026-11-20 (buy 0x65648ac4… +
+    // sell 0xa27bd1f3…, both status 1; 262,070 gas/round @ 0.006 gwei).
+    // There is NO canonical Uniswap on Base Sepolia (verified live:
+    // V2/V3 factories have no code) — our factory is the only V2.
+    baseToken: '0x774eF4Bf6E350A80ae86972c09f2f493e0F1Bfa6',
     baseSymbol: 'WETH',
     nativeSymbol: 'ETH',
     baseDecimals: 18,
     buyWithERC20: false,
-    factory: null,
-    router: null,
-    gasNote: 'BOTH wallets hold 0 ETH — no gas (same as Sepolia).',
-    dexNote: 'No Uniswap V2 at the known addresses (verified: factory has no code; the contract at the mainnet router address is not a V2 router). Set FACTORY_ADDRESS / ROUTER_ADDRESS / BASE_TOKEN_ADDRESS to point at a V2-style deployment.',
+    factory: '0x4AcDbaeE32c928A782056EF0b7bA58FE06ffCbce',
+    router: '0x87125aBCE7a1d6e675AC0C0dE07283C4105daF1d',
+    gasNote: 'Burner holds 0.0094165 ETH (verified 2026-11-20 — 0.03 bridged from Sepolia, pool seed 0.0202 + deploys ~0.0004); ~11 days sniper runway at ~0.00087 ETH/day. No auto top-up for Base Sepolia ETH (Circle faucet pays USDC only).',
+    dexNote: 'AGNAmuse V2 live (factory 0x4AcDba…, router 0x87125a…, verified 2026-11-20). AGNA/WETH9 pool 0xE887Aa… (359.964T AGNA + 0.0202 ETH). Added to the daily volume run 2026-11-20 (5th chain).',
   },
   'litvm-testnet': {
     name: 'LitVM Testnet',
