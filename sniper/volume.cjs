@@ -93,9 +93,12 @@ const GAS_FLOOR_GWEI = {
   // Sepolia was 17 wei (0.000000017 gwei). On 2026-11-19 that left ~72 txns
   // stuck unmined in a mempool (base fee ~16 wei; a 17-wei legacy txn is
   // barely includable and gets evicted/deprioritised). Raised to 0.01 gwei
-  // (~600,000x the base fee): the remaining ~880 Sepolia txns cost only
-  // ~0.0015 ETH at this price, and the txns can no longer be evicted.
-  sepolia: '0.01',
+  // (~600,000x the base fee). Then raised again to 0.02 gwei: the
+  // resend must REPLACE old 0.011-gwei txns still sitting in some
+  // backends' mempools, and a replacement needs >=10% higher gas
+  // price — 0.022 gwei (0.02 floor x1.1) is 2x the old price, so it
+  // replaces cleanly. Cost for the remaining ~174 txns is ~0.0006 ETH.
+  sepolia: '0.02',
   'arc-testnet': '31.625',
   'robinhood-testnet': '0.01',
   'litvm-testnet': '0.01',
