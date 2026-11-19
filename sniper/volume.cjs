@@ -129,18 +129,22 @@ function deadline() { return Math.floor(Date.now() / 1000) + DEADLINE_SECONDS; }
 function log(...a) { console.log(`[${new Date().toISOString()}]`, ...a); }
 
 function parseArgs(argv) {
-  const args = { chain: null, smoke: false, verify: false, rounds: TARGET_ROUNDS, resumeOnly: false };
+  const args = { chain: null, smoke: false, verify: false, rounds: TARGET_ROUNDS, resumeOnly: false, sendDelayMs: 0 };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--chain') args.chain = argv[++i];
     else if (argv[i] === '--smoke') args.smoke = true;
     else if (argv[i] === '--verify') args.verify = true;
     else if (argv[i] === '--resume-only') args.resumeOnly = true;
+    else if (argv[i] === '--send-delay-ms') {
+      args.sendDelayMs = Number.parseInt(argv[++i], 10);
+      if (!Number.isFinite(args.sendDelayMs) || args.sendDelayMs < 0) throw new Error('--send-delay-ms must be a non-negative integer (ms)');
+    }
     else if (argv[i] === '--rounds') {
       args.rounds = Number.parseInt(argv[++i], 10);
       if (!Number.isFinite(args.rounds) || args.rounds <= 0) throw new Error('--rounds must be a positive integer');
     }
   }
-  if (!args.chain) throw new Error('Usage: node volume.cjs --chain <sepolia|arc-testnet|robinhood-testnet|litvm-testnet|all> [--rounds N] [--resume-only] [--smoke|--verify]');
+  if (!args.chain) throw new Error('Usage: node volume.cjs --chain <sepolia|arc-testnet|robinhood-testnet|litvm-testnet|all> [--rounds N] [--resume-only] [--send-delay-ms N] [--smoke|--verify]');
   return args;
 }
 
@@ -301,7 +305,7 @@ async function sendWithRetry(wallet, tx, label) {
   throw new Error(`${label}: send failed after 3 attempts: ${lastErr.shortMessage || lastErr.message}`);
 }
 
-async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = TARGET_ROUNDS, resumeOnly = false } = {}) {
+async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = TARGET_ROUNDS, resumeOnly = false, sendDelayMs = 0 } = {}) {
   const pk = loadPrivateKey();
   const cfg = loadConfig({
     CHAIN: chainKey,
@@ -490,7 +494,13 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
       const nonceBuy = cs.nextNonce;
       const nonceSell = cs.nextNonce + 1;
       const buySent = await sendWithRetry(wallet, { ...buyTx, gasPrice, gasLimit: buyGasLimit, nonce: nonceBuy }, `${chainKey} buy round ${round}`);
+      // --send-delay-ms: pause between sends so a load-balanced RPC's
+      // backends can gossip each txn before the next is sent. Without
+      // it, rapid sends scatter across backends, fragment the nonce
+      // sequence, and txns get dropped (Sepolia lost ~189 this way).
+      if (sendDelayMs > 0) await sleep(sendDelayMs);
       const sellSent = await sendWithRetry(wallet, { ...sellTx, gasPrice, gasLimit: sellGasLimit, nonce: nonceSell }, `${chainKey} sell round ${round}`);
+      if (sendDelayMs > 0) await sleep(sendDelayMs);
       cs.hashes.push(buySent.hash, sellSent.hash);
       cs.tradeHashes.push(buySent.hash, sellSent.hash);
       if (!cs.firstBuyHash) cs.firstBuyHash = buySent.hash;
@@ -620,7 +630,7 @@ async function main() {
   const results = [];
   for (const c of chains) {
     if (!AGNA[c]) throw new Error(`Unknown chain ${c}`);
-    results.push(await runChain(c, { smoke: args.smoke, verifyOnly: args.verify, rounds: args.rounds, resumeOnly: args.resumeOnly }));
+    results.push(await runChain(c, { smoke: args.smoke, verifyOnly: args.verify, rounds: args.rounds, resumeOnly: args.resumeOnly, sendDelayMs: args.sendDelayMs }));
   }
   console.log(JSON.stringify({ results }, null, 2));
 }
