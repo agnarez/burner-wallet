@@ -904,10 +904,17 @@ async function runChain(chainKey, { smoke = false, verifyOnly = false, rounds = 
           // Prefer the micro-test's ACTUAL gas: estimateGas overstates
           // this pair (Sepolia WETH/USDC: 185k/291k estimated vs a
           // ~143k/round measured reality on the AGNA pair).
+          // BUT the micro-test gas is stale: on Base the live sell costs
+          // ~145k vs the micro-test's 118k (2026-11-20 — all 75 sells
+          // of the first Base batch ran out of gas at microTest*120% =
+          // 141,376). Re-estimate live in the current state and take the
+          // max, then a 150% margin (not 120%) for execution safety.
           buyGasEst = measuredEst.buy;
           sellGasEst = measuredEst.sell;
-          buyGasLimit = buyGasEst * 120n / 100n;
-          sellGasLimit = sellGasEst * 120n / 100n;
+          try { const liveBuy = await withRetry(() => provider.estimateGas({ ...buyTx, from: BURNER }), `${chainKey} buy gas re-estimate`); if (liveBuy > buyGasEst) buyGasEst = liveBuy; } catch {}
+          try { const liveSell = await withRetry(() => provider.estimateGas({ ...sellTx, from: BURNER }), `${chainKey} sell gas re-estimate`); if (liveSell > sellGasEst) sellGasEst = liveSell; } catch {}
+          buyGasLimit = buyGasEst * 150n / 100n;
+          sellGasLimit = sellGasEst * 150n / 100n;
         } else {
           try { buyGasEst = await withRetry(() => provider.estimateGas({ ...buyTx, from: BURNER }), `${chainKey} buy gas estimate`); buyGasLimit = buyGasEst * 120n / 100n; } catch { buyGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; buyGasEst = MEASURED_ROUND_GAS[chainKey] / 2n; }
           try { sellGasEst = await withRetry(() => provider.estimateGas({ ...sellTx, from: BURNER }), `${chainKey} sell gas estimate`); sellGasLimit = sellGasEst * 120n / 100n; } catch { sellGasLimit = cfg.chainKey === 'sepolia' ? 460000n : 220000n; sellGasEst = MEASURED_ROUND_GAS[chainKey] / 2n; }
